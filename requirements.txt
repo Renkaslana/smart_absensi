@@ -1,0 +1,23 @@
+# Smart Absensi Berbasis Wajah
+# Python Requirements File
+
+# Core Dependencies
+opencv-python>=4.5.0
+numpy>=1.19.0
+pandas>=1.2.0
+jupyter>=1.0.0
+imutils>=0.5.4
+
+# Face Recognition
+cmake>=3.18.0
+dlib>=19.22.0
+face-recognition>=1.3.0
+
+# Optional (untuk export Excel)
+openpyxl>=3.0.0
+
+# Note untuk Windows:
+# Jika instalasi dlib gagal, gunakan wheel prebuilt:
+# pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp39-cp39-win_amd64.whl
+
+

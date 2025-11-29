@@ -22,7 +22,7 @@ wheels/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb_checkpoints
+*.ipynb_checkpoints/
 
 # Environment
 .env
@@ -32,6 +32,22 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+conda-meta/
+
+# Data files (sensitive)
+dataset_wajah/*.jpg
+dataset_wajah/*.png
+encodings/*.pickle
+output/*.jpg
+output/*.png
+absensi.csv
+*.csv
+*.xlsx
+
+# Keep folder structure
+!dataset_wajah/.gitkeep
+!encodings/.gitkeep
+!output/.gitkeep
 
 # IDE
 .vscode/
@@ -39,22 +55,6 @@ venv.bak/
 *.swp
 *.swo
 *~
-
-# Data Files (jangan commit data sensitif)
-dataset_wajah/*.jpg
-dataset_wajah/*.png
-encodings/*.pickle
-output/*.jpg
-output/*.png
-absensi.csv
-absensi_backup_*.csv
-laporan_absensi_*.xlsx
-laporan_absensi_*.csv
-
-# Keep folder structure
-!dataset_wajah/.gitkeep
-!encodings/.gitkeep
-!output/.gitkeep
 
 # OS
 .DS_Store
@@ -64,4 +64,7 @@ desktop.ini
 # Logs
 *.log
 
-
+# Temporary files
+*.tmp
+*.bak
+*.backup

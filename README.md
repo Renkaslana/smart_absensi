@@ -2,9 +2,10 @@
 
 Sistem absensi realtime menggunakan face recognition dengan Python yang berjalan di Jupyter Notebook.
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![OpenCV](https://img.shields.io/badge/OpenCV-Latest-green.svg)
-![Face Recognition](https://img.shields.io/badge/Face_Recognition-Latest-orange.svg)
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.11.0-green.svg)
+![Face Recognition](https://img.shields.io/badge/Face_Recognition-1.3.0-orange.svg)
+![NumPy](https://img.shields.io/badge/NumPy-1.26.4-yellow.svg)
 
 ---
 
@@ -16,6 +17,7 @@ Sistem absensi realtime menggunakan face recognition dengan Python yang berjalan
 ✅ **Visualisasi Data** - Lihat statistik dan laporan absensi  
 ✅ **Export Data** - Export ke CSV/Excel untuk analisis lebih lanjut  
 ✅ **Penanganan Error** - Auto-detect kamera dengan fallback mechanism  
+✅ **Batch Scripts** - File .bat untuk memudahkan startup project
 
 ---
 
@@ -28,7 +30,12 @@ Smart-Absensi/
 ├── output/               # Foto hasil absensi
 ├── notebook.ipynb        # Jupyter Notebook utama
 ├── absensi.csv           # Database log absensi
+├── start_project.bat     # Script untuk memulai project (interaktif)
+├── start_jupyter.bat     # Script untuk langsung buka Jupyter
+├── open_anaconda_prompt.bat  # Script untuk buka Anaconda Prompt
+├── requirements.txt      # Daftar library dengan versi
 ├── SETUP_CONDA.md        # Panduan instalasi lengkap
+├── FAQ.md                # Pertanyaan yang sering diajukan
 └── README.md             # File ini
 ```
 
@@ -39,26 +46,40 @@ Smart-Absensi/
 ### 1. Setup Environment
 
 ```bash
-# Buat environment conda baru
-conda create -n absensi-wajah python=3.9 -y
+# Buat environment conda baru (Python 3.11)
+conda create -n smart-absensi python=3.11 -y
 
 # Aktifkan environment
-conda activate absensi-wajah
+conda activate smart-absensi
 
 # Install dependencies
-conda install -c conda-forge opencv numpy pandas jupyter imutils -y
+conda install -c conda-forge opencv pandas jupyter pillow -y
+pip install numpy==1.26.4
 pip install cmake dlib face-recognition
 ```
 
-**Catatan untuk Windows:** Jika instalasi dlib gagal, gunakan wheel prebuilt. Lihat `SETUP_CONDA.md` untuk detail.
+**Catatan Penting:**
+- **Python 3.11** direkomendasikan (kompatibel dengan semua library)
+- **NumPy 1.26.4** (wajib, versi lain mungkin tidak kompatibel)
+- **Pillow** diperlukan untuk kompatibilitas face_recognition
+- Untuk Windows: Jika instalasi dlib gagal, lihat `SETUP_CONDA.md`
 
-### 2. Jalankan Jupyter Notebook
+### 2. Jalankan Project
 
+**Opsi A: Menggunakan Batch Script (Paling Mudah)**
 ```bash
-jupyter notebook
+# Double-click file:
+start_jupyter.bat        # Langsung buka Jupyter
+# atau
+start_project.bat        # Menu interaktif
 ```
 
-Kemudian buka file `notebook.ipynb` di browser.
+**Opsi B: Manual**
+```bash
+conda activate smart-absensi
+cd "C:\my Project\Smart-Absensi"
+jupyter notebook
+```
 
 ### 3. Mulai Menggunakan
 
@@ -97,14 +118,16 @@ Kemudian buka file `notebook.ipynb` di browser.
 
 ## 🛠️ Teknologi yang Digunakan
 
-| Library | Fungsi |
-|---------|--------|
-| **OpenCV** | Capture video dan manipulasi gambar |
-| **face_recognition** | Deteksi dan encoding wajah |
-| **dlib** | Face detection model |
-| **NumPy** | Operasi array dan matematika |
-| **Pandas** | Manajemen data dan export |
-| **Jupyter** | Interactive notebook environment |
+| Library | Versi | Fungsi |
+|---------|-------|--------|
+| **Python** | 3.11+ | Runtime environment |
+| **OpenCV** | 4.11.0 | Capture video dan manipulasi gambar |
+| **face_recognition** | 1.3.0 | Deteksi dan encoding wajah |
+| **dlib** | 19.24+ | Face detection model |
+| **NumPy** | 1.26.4 | Operasi array dan matematika |
+| **Pandas** | 2.3+ | Manajemen data dan export |
+| **Pillow** | 11.3+ | Image processing |
+| **Jupyter** | Latest | Interactive notebook environment |
 
 ---
 
@@ -157,7 +180,7 @@ small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
 ### Encoding Files (.pickle)
 
 Disimpan di folder `encodings/` dengan format:
-```
+```python
 {
     'nama': 'John Doe',
     'id': '12345678',
@@ -168,6 +191,27 @@ Disimpan di folder `encodings/` dengan format:
 ---
 
 ## 🔍 Troubleshooting
+
+### Error: "Unsupported image type, must be 8bit gray or RGB image"
+
+**Penyebab:** NumPy versi tidak kompatibel atau format array tidak benar
+
+**Solusi:**
+```bash
+conda activate smart-absensi
+pip uninstall numpy -y
+pip install numpy==1.26.4
+```
+Kemudian restart kernel Jupyter.
+
+### Error: "No module named 'numpy._core'"
+
+**Penyebab:** NumPy versi terlalu lama untuk Python 3.11
+
+**Solusi:**
+```bash
+pip install numpy==1.26.4
+```
 
 ### Kamera Tidak Terdeteksi
 
@@ -185,29 +229,25 @@ Disimpan di folder `encodings/` dengan format:
 - Jangan terlalu jauh atau dekat (jarak ideal: 50-100 cm)
 - Pastikan wajah tidak tertutup (masker, topi, dll)
 
-### Salah Mengenali Wajah
-
-**Solusi:**
-- Registrasi ulang dengan foto lebih jelas
-- Kurangi tolerance value (lebih strict)
-- Pastikan pencahayaan konsisten saat registrasi dan absensi
-
 ### Error Import dlib
 
 **Solusi untuk Windows:**
 ```bash
-# Download wheel prebuilt
+pip install cmake
+pip install dlib
+```
+
+Jika masih error, gunakan wheel prebuilt:
+```bash
 pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp39-cp39-win_amd64.whl
 ```
 
 **Solusi untuk Linux/Mac:**
 ```bash
-# Install dependencies
-sudo apt-get install cmake
+sudo apt-get install cmake  # Ubuntu/Debian
 # atau
-brew install cmake
+brew install cmake  # macOS
 
-# Install dlib
 pip install dlib
 ```
 
@@ -289,7 +329,7 @@ MIT License - Silakan gunakan untuk keperluan pribadi dan komersial.
 ## 👨‍💻 Kontak & Support
 
 Jika ada pertanyaan atau masalah, silakan:
-- Buka issue di repository
+- Buka issue di [repository GitHub](https://github.com/Renkaslana/smart-absensi)
 - Baca dokumentasi di `SETUP_CONDA.md`
 - Cek troubleshooting guide di atas
 
@@ -300,5 +340,3 @@ Jika ada pertanyaan atau masalah, silakan:
 Sistem Smart Absensi Berbasis Wajah siap membantu Anda mengelola absensi dengan mudah dan efisien.
 
 **Happy Coding!** 🚀
-
-

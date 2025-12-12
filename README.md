@@ -1,342 +1,334 @@
 # 🎯 Smart Absensi Berbasis Wajah
 
-Sistem absensi realtime menggunakan face recognition dengan Python yang berjalan di Jupyter Notebook.
+Sistem absensi berbasis pengenalan wajah (face recognition) dengan dua versi:
+- **Prototype**: Jupyter Notebook untuk development dan testing
+- **Web Application**: Full-stack web app (FastAPI + Next.js) untuk production
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.11.0-green.svg)
+![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
 ![Face Recognition](https://img.shields.io/badge/Face_Recognition-1.3.0-orange.svg)
-![NumPy](https://img.shields.io/badge/NumPy-1.26.4-yellow.svg)
 
 ---
 
 ## 📋 Fitur Utama
 
-✅ **Registrasi Wajah** - Daftarkan wajah baru dengan mudah melalui kamera  
-✅ **Deteksi Realtime** - Deteksi wajah secara realtime dengan akurasi tinggi  
-✅ **Absensi Otomatis** - Pencatatan absensi otomatis dengan timestamp  
-✅ **Visualisasi Data** - Lihat statistik dan laporan absensi  
-✅ **Export Data** - Export ke CSV/Excel untuk analisis lebih lanjut  
-✅ **Penanganan Error** - Auto-detect kamera dengan fallback mechanism  
-✅ **Batch Scripts** - File .bat untuk memudahkan startup project
+### 🔬 Versi Prototype (Jupyter Notebook)
+✅ Registrasi wajah via kamera  
+✅ Deteksi wajah realtime  
+✅ Absensi otomatis dengan timestamp  
+✅ Export data ke CSV  
+✅ Visualisasi statistik  
+
+### 🌐 Versi Web Application
+✅ **Authentication** - Login/Register dengan JWT  
+✅ **Role-based Access** - Admin & User (Mahasiswa)  
+✅ **Face Registration** - Upload/capture minimal 3 foto untuk akurasi tinggi  
+✅ **Face Recognition** - Pengenalan wajah dengan confidence score  
+✅ **Liveness Detection** - Anti-spoofing (blink detection)  
+✅ **Admin Dashboard** - Kelola users, lihat statistik, generate laporan  
+✅ **Attendance History** - Riwayat absensi lengkap  
+✅ **Responsive Design** - Mobile-friendly UI  
 
 ---
 
 ## 📁 Struktur Proyek
 
 ```
-Smart-Absensi/
-├── dataset_wajah/        # Foto wajah yang diregistrasi
-├── encodings/            # File encoding wajah (.pickle)
-├── output/               # Foto hasil absensi
-├── notebook.ipynb        # Jupyter Notebook utama
-├── absensi.csv           # Database log absensi
-├── start_project.bat     # Script untuk memulai project (interaktif)
-├── start_jupyter.bat     # Script untuk langsung buka Jupyter
-├── open_anaconda_prompt.bat  # Script untuk buka Anaconda Prompt
-├── requirements.txt      # Daftar library dengan versi
-├── SETUP_CONDA.md        # Panduan instalasi lengkap
-├── FAQ.md                # Pertanyaan yang sering diajukan
-└── README.md             # File ini
+smart-absensi/
+├── preprocessing.ipynb    # 🔬 Prototype Jupyter Notebook
+├── backend/               # 🐍 Backend API (FastAPI)
+│   ├── main.py           # Entry point
+│   ├── config.py         # Configuration
+│   ├── routes/           # API endpoints
+│   │   ├── auth.py       # Authentication
+│   │   ├── face.py       # Face registration/recognition
+│   │   ├── absensi.py    # Attendance
+│   │   └── admin.py      # Admin features
+│   ├── services/         # Business logic
+│   │   ├── face_recognition_service.py
+│   │   ├── liveness_detection.py
+│   │   └── preprocessing.py
+│   ├── database/         # Database layer
+│   │   └── db_service.py
+│   └── utils/            # Utilities
+│       └── security.py
+├── frontend/              # ⚛️ Frontend (Next.js 14)
+│   ├── src/app/          # App Router pages
+│   │   ├── login/        # Login page
+│   │   ├── register/     # Register page
+│   │   ├── dashboard/    # User dashboard
+│   │   │   ├── absensi/  # Attendance page
+│   │   │   ├── face-register/  # Face registration
+│   │   │   └── history/  # Attendance history
+│   │   └── admin/        # Admin dashboard
+│   │       ├── students/ # Student management
+│   │       ├── reports/  # Reports
+│   │       └── face-register/  # Admin face registration
+│   └── src/lib/          # API & utilities
+├── dataset_wajah/         # 📸 Foto wajah registrasi
+├── encodings/             # 🧠 File encoding wajah (.pickle)
+├── output/                # 📷 Foto hasil absensi
+├── uploads/               # 📤 File uploads
+├── smart_absensi.db       # 💾 Database SQLite (web)
+├── absensi.csv            # 📊 Log absensi (prototype)
+├── requirements.txt       # Python dependencies
+├── start_project.bat      # 🚀 Script start prototype
+├── start_webapp.bat       # 🚀 Script start web app
+├── create_admin.py        # 👤 Script buat admin
+├── INSTALLATION.md        # 📖 Panduan instalasi lengkap
+├── QUICK_START.md         # ⚡ Quick start guide
+└── README.md              # 📖 Dokumentasi (file ini)
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Setup Environment
+### Versi Web Application (Recommended)
 
 ```bash
-# Buat environment conda baru (Python 3.11)
+# 1. Clone & Setup Backend
 conda create -n smart-absensi python=3.11 -y
-
-# Aktifkan environment
 conda activate smart-absensi
+pip install -r requirements.txt
 
-# Install dependencies
+# 2. Setup Frontend
+cd frontend
+npm install
+
+# 3. Buat Admin User
+cd ..
+python create_admin.py
+
+# 4. Jalankan (pilih salah satu)
+
+# Opsi A: Menggunakan script (Windows)
+start_webapp.bat
+
+# Opsi B: Manual (2 terminal)
+# Terminal 1 - Backend:
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
+
+# Terminal 2 - Frontend:
+cd frontend && npm run dev
+```
+
+**Akses:**
+- 🌐 **Web App**: http://localhost:3000
+- 📚 **API Docs**: http://localhost:8001/docs
+- 👤 **Admin Login**: `admin` / `admin123`
+
+### Versi Prototype (Jupyter Notebook)
+
+```bash
+# 1. Setup environment
+conda create -n smart-absensi python=3.11 -y
+conda activate smart-absensi
 conda install -c conda-forge opencv pandas jupyter pillow -y
-pip install numpy==1.26.4
-pip install cmake dlib face-recognition
-```
+pip install numpy==1.26.4 cmake dlib face-recognition
 
-**Catatan Penting:**
-- **Python 3.11** direkomendasikan (kompatibel dengan semua library)
-- **NumPy 1.26.4** (wajib, versi lain mungkin tidak kompatibel)
-- **Pillow** diperlukan untuk kompatibilitas face_recognition
-- Untuk Windows: Jika instalasi dlib gagal, lihat `SETUP_CONDA.md`
-
-### 2. Jalankan Project
-
-**Opsi A: Menggunakan Batch Script (Paling Mudah)**
-```bash
-# Double-click file:
-start_jupyter.bat        # Langsung buka Jupyter
-# atau
-start_project.bat        # Menu interaktif
-```
-
-**Opsi B: Manual**
-```bash
-conda activate smart-absensi
-cd "C:\my Project\Smart-Absensi"
+# 2. Jalankan
 jupyter notebook
+# Atau: start_project.bat (Windows)
+
+# 3. Buka preprocessing.ipynb
 ```
 
-### 3. Mulai Menggunakan
-
-1. **Jalankan cell pertama** untuk import library dan test kamera
-2. **Registrasi wajah** dengan menjalankan cell di bagian "B. MODUL REGISTRASI WAJAH"
-3. **Mulai absensi** dengan menjalankan cell di bagian "C. MODUL ABSENSI WAJAH"
-4. **Lihat hasil** di bagian "D. VISUALISASI DATA ABSENSI"
+> 📖 **Panduan lengkap: [INSTALLATION.md](INSTALLATION.md)**
 
 ---
 
-## 📖 Cara Penggunaan
+## 🔐 Login Credentials
 
-### Registrasi Wajah Baru
+### Admin Default
+| Field | Value |
+|-------|-------|
+| NIM | `admin` |
+| Password | `admin123` |
+| Role | Administrator |
 
-1. Jalankan cell registrasi
-2. Masukkan nama dan ID/NIM
-3. Posisikan wajah di depan kamera
-4. Tekan **'c'** untuk capture
-5. Sistem akan menyimpan foto dan encoding wajah
-
-### Melakukan Absensi
-
-1. Jalankan cell absensi realtime
-2. Posisikan wajah di depan kamera
-3. Sistem akan otomatis mendeteksi dan mencatat absensi
-4. Tekan **'q'** untuk keluar
-
-### Melihat Data Absensi
-
-1. Jalankan cell visualisasi data
-2. Lihat tabel lengkap data absensi
-3. Lihat statistik jumlah absensi per orang
-4. Export ke Excel/CSV jika diperlukan
+### User Baru
+- Register melalui `/register` atau dibuat oleh admin di `/admin/students`
+- Setelah register, daftarkan wajah di `/dashboard/face-register`
 
 ---
 
-## 🛠️ Teknologi yang Digunakan
+## 📸 Cara Registrasi Wajah (Web)
 
-| Library | Versi | Fungsi |
-|---------|-------|--------|
-| **Python** | 3.11+ | Runtime environment |
-| **OpenCV** | 4.11.0 | Capture video dan manipulasi gambar |
-| **face_recognition** | 1.3.0 | Deteksi dan encoding wajah |
-| **dlib** | 19.24+ | Face detection model |
-| **NumPy** | 1.26.4 | Operasi array dan matematika |
-| **Pandas** | 2.3+ | Manajemen data dan export |
-| **Pillow** | 11.3+ | Image processing |
-| **Jupyter** | Latest | Interactive notebook environment |
+> ⚠️ **Penting**: Minimal **3 foto** dari sudut berbeda untuk akurasi tinggi!
+
+### Untuk User:
+1. Login → Dashboard → **Daftar Wajah**
+2. Aktifkan kamera
+3. Ambil **3+ foto** dari sudut berbeda:
+   - 📸 Foto 1: Wajah depan (frontal)
+   - 📸 Foto 2: Wajah miring kiri (~15°)
+   - 📸 Foto 3: Wajah miring kanan (~15°)
+4. Klik **"Daftarkan"**
+
+### Untuk Admin:
+1. Login Admin → **Registrasi Wajah**
+2. Pilih mahasiswa dari dropdown
+3. Ambil **3+ foto** wajah mahasiswa
+4. Klik **"Daftarkan"**
+
+---
+
+## 📊 Melakukan Absensi
+
+### Via Web (Tanpa Login)
+1. Buka http://localhost:3000
+2. Klik **"Mulai Absensi"** di halaman utama
+3. Izinkan akses kamera
+4. Posisikan wajah di frame
+5. Sistem akan otomatis mengenali dan mencatat absensi
+
+### Via Dashboard (Dengan Login)
+1. Login → Dashboard → **Absensi**
+2. Klik **"Mulai Scan"**
+3. Posisikan wajah
+4. Tunggu verifikasi dan konfirmasi
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Python | 3.11+ | Runtime |
+| FastAPI | 0.104+ | REST API Framework |
+| SQLite | - | Database |
+| face_recognition | 1.3.0 | Face Detection & Encoding |
+| OpenCV | 4.11+ | Image Processing |
+| JWT | - | Authentication |
+| bcrypt | - | Password Hashing |
+
+### Frontend
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Next.js | 14 | React Framework |
+| TypeScript | 5+ | Type Safety |
+| Tailwind CSS | 3+ | Styling |
+| Framer Motion | - | Animations |
+| Axios | - | HTTP Client |
+| react-webcam | - | Camera Access |
 
 ---
 
 ## ⚙️ Konfigurasi
 
-### Setting Kamera
+### Port Configuration
+| Service | Default Port | Environment Variable |
+|---------|--------------|---------------------|
+| Backend | 8001 | `--port 8001` |
+| Frontend | 3000 | `PORT=3000` |
 
-Sistem akan otomatis mencari kamera di index 0, 1, dan 2. Jika kamera tidak terdeteksi, periksa:
-- Apakah kamera digunakan aplikasi lain
-- Permission kamera di sistem operasi
-- Driver kamera terinstall dengan benar
+### Environment Variables
 
-### Toleransi Face Recognition
-
-Default tolerance: **0.6**
-
-- **< 0.6**: Lebih strict (kurangi false positive)
-- **> 0.6**: Lebih lenient (tingkatkan detection rate)
-
-Edit di cell fungsi `absensi_realtime()`:
-```python
-matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=0.6)
+**Frontend** (`frontend/.env.local`):
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8001
 ```
 
-### Resize Frame untuk Performa
-
-Default: **0.25x** (1/4 ukuran asli)
-
-- **0.25x**: Cepat, cocok untuk komputer standar
-- **0.5x**: Balanced, cocok untuk komputer menengah
-- **1.0x**: Full quality, perlu komputer powerful
-
-Edit di cell fungsi `absensi_realtime()`:
-```python
-small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-```
-
----
-
-## 📊 Format Data
-
-### absensi.csv
-
-| Kolom | Deskripsi | Contoh |
-|-------|-----------|--------|
-| nama | Nama lengkap | John Doe |
-| id | NIM/ID unik | 12345678 |
-| waktu | Timestamp absensi | 2025-11-28 10:30:45 |
-
-### Encoding Files (.pickle)
-
-Disimpan di folder `encodings/` dengan format:
-```python
-{
-    'nama': 'John Doe',
-    'id': '12345678',
-    'encoding': [array of 128 float values]
-}
-```
+### Face Recognition Settings
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `recognition_tolerance` | 0.6 | Lower = stricter matching |
+| `min_confidence` | 60.0 | Minimum confidence % |
+| `min_photos` | 3 | Minimum photos for registration |
 
 ---
 
 ## 🔍 Troubleshooting
 
-### Error: "Unsupported image type, must be 8bit gray or RGB image"
-
-**Penyebab:** NumPy versi tidak kompatibel atau format array tidak benar
-
-**Solusi:**
+### Port 8000 Blocked (Windows)
 ```bash
-conda activate smart-absensi
+# Gunakan port 8001
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+### face_recognition Install Error
+```bash
+# Windows: Install Visual C++ Build Tools dulu
+# Download: https://visualstudio.microsoft.com/downloads/
+
+# Atau gunakan prebuilt wheel
+pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp311-cp311-win_amd64.whl
+pip install face-recognition
+```
+
+### NumPy Compatibility
+```bash
 pip uninstall numpy -y
 pip install numpy==1.26.4
 ```
-Kemudian restart kernel Jupyter.
 
-### Error: "No module named 'numpy._core'"
+### CORS Error
+Pastikan backend sudah running dan URL di `.env.local` benar.
 
-**Penyebab:** NumPy versi terlalu lama untuk Python 3.11
-
-**Solusi:**
-```bash
-pip install numpy==1.26.4
-```
-
-### Kamera Tidak Terdeteksi
-
-**Solusi:**
-- Tutup aplikasi lain yang menggunakan kamera
-- Restart kernel Jupyter
-- Coba index kamera berbeda (0, 1, atau 2)
-- Periksa permission kamera di sistem
-
-### Wajah Tidak Terdeteksi
-
-**Solusi:**
-- Perbaiki pencahayaan ruangan
-- Posisikan wajah menghadap langsung ke kamera
-- Jangan terlalu jauh atau dekat (jarak ideal: 50-100 cm)
-- Pastikan wajah tidak tertutup (masker, topi, dll)
-
-### Error Import dlib
-
-**Solusi untuk Windows:**
-```bash
-pip install cmake
-pip install dlib
-```
-
-Jika masih error, gunakan wheel prebuilt:
-```bash
-pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp39-cp39-win_amd64.whl
-```
-
-**Solusi untuk Linux/Mac:**
-```bash
-sudo apt-get install cmake  # Ubuntu/Debian
-# atau
-brew install cmake  # macOS
-
-pip install dlib
-```
-
-### Performance Issues
-
-**Solusi:**
-- Kurangi ukuran frame (fx=0.2 atau 0.15)
-- Tingkatkan `process_every_n_frames` (misal: 3 atau 4)
-- Tutup aplikasi lain yang berat
+> 📖 **Troubleshooting lengkap: [INSTALLATION.md](INSTALLATION.md)**
 
 ---
 
-## 📝 Tips dan Best Practices
-
-### Registrasi Wajah
-
-✅ **DO:**
-- Gunakan pencahayaan yang baik dan merata
-- Foto wajah langsung menghadap kamera
-- Gunakan background yang polos
-- Pastikan wajah terlihat jelas tanpa bayangan
-
-❌ **DON'T:**
-- Registrasi di tempat gelap
-- Wajah terlalu miring atau samping
-- Memakai aksesoris berlebihan saat registrasi
-- Registrasi dengan kualitas gambar buruk
-
-### Absensi
-
-✅ **DO:**
-- Gunakan kondisi pencahayaan yang sama dengan saat registrasi
-- Posisikan wajah di tengah frame
-- Tunggu sampai kotak hijau muncul
-- Biarkan sistem beberapa detik untuk deteksi
-
-❌ **DON'T:**
-- Bergerak terlalu cepat
-- Menutupi sebagian wajah
-- Absensi di tempat dengan pencahayaan berbeda drastis
-
----
-
-## 🔒 Keamanan dan Privacy
-
-⚠️ **Penting:**
-- File encoding wajah bersifat sensitif
-- Jangan share folder `encodings/` dan `dataset_wajah/`
-- Simpan backup data absensi secara berkala
-- Gunakan sistem ini sesuai regulasi privasi yang berlaku
-
----
-
-## 📈 Roadmap
+## 📈 Fitur Mendatang (Roadmap)
 
 - [ ] Multi-camera support
-- [ ] Cloud database integration
-- [ ] Web dashboard
-- [ ] Mobile app companion
-- [ ] Advanced analytics
-- [ ] Liveness detection
-- [ ] Mask detection
+- [ ] Cloud database (PostgreSQL/MySQL)
+- [ ] Mobile app (React Native)
+- [ ] Advanced liveness detection
+- [ ] Face mask detection
 - [ ] Integration dengan sistem akademik
+- [ ] Export PDF reports
+- [ ] Email notifications
 
 ---
 
-## 🤝 Kontribusi
+## 📝 Catatan Penting
 
-Proyek ini dibuat untuk keperluan edukasi dan prototype. Silakan gunakan, modifikasi, dan kembangkan sesuai kebutuhan.
+### Keamanan
+- ⚠️ Jangan share folder `encodings/` dan `dataset_wajah/`
+- ⚠️ Ganti password admin default di production
+- ⚠️ Gunakan HTTPS di production
+
+### Best Practices Registrasi Wajah
+- ✅ Pencahayaan baik dan merata
+- ✅ Wajah tidak tertutup (tanpa masker/kacamata hitam)
+- ✅ Foto dari berbagai sudut
+- ✅ Ekspresi netral
+- ❌ Hindari backlight
+- ❌ Hindari foto blur
+
+---
+
+## 📚 Dokumentasi Lengkap
+
+| Dokumen | Deskripsi |
+|---------|-----------|
+| [INSTALLATION.md](INSTALLATION.md) | Panduan instalasi lengkap |
+| [QUICK_START.md](QUICK_START.md) | Quick start guide |
+| [/docs](http://localhost:8001/docs) | API Documentation (Swagger) |
+
+---
+
+## 🎓 Tentang Proyek
+
+Smart Absensi adalah sistem absensi berbasis pengenalan wajah yang dikembangkan untuk keperluan akademik. Proyek ini dimulai sebagai prototype Jupyter Notebook dan kemudian dikembangkan menjadi full-stack web application.
+
+**Teknologi Utama:**
+- **Face Detection**: HOG (Histogram of Oriented Gradients)
+- **Face Encoding**: 128-dimensional face embedding
+- **Matching**: Euclidean distance dengan threshold
 
 ---
 
 ## 📄 License
 
-MIT License - Silakan gunakan untuk keperluan pribadi dan komersial.
-
----
-
-## 👨‍💻 Kontak & Support
-
-Jika ada pertanyaan atau masalah, silakan:
-- Buka issue di [repository GitHub](https://github.com/Renkaslana/smart-absensi)
-- Baca dokumentasi di `SETUP_CONDA.md`
-- Cek troubleshooting guide di atas
+MIT License - Bebas digunakan untuk keperluan pribadi dan komersial.
 
 ---
 
 ## 🎉 Selamat Menggunakan!
-
-Sistem Smart Absensi Berbasis Wajah siap membantu Anda mengelola absensi dengan mudah dan efisien.
 
 **Happy Coding!** 🚀

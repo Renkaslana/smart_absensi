@@ -43,6 +43,8 @@ output/*.png
 absensi.csv
 *.csv
 *.xlsx
+*.db
+smart_absensi.db
 
 # Keep folder structure
 !dataset_wajah/.gitkeep

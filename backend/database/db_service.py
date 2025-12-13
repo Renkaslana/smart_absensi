@@ -5,13 +5,28 @@
 # Features: Role-based access, duplicate prevention, comprehensive statistics
 
 import sqlite3
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+# WIB timezone (UTC+7)
+WIB = timezone(timedelta(hours=7))
+
+def get_wib_now() -> datetime:
+    """
+    Get current datetime in WIB (Western Indonesian Time, UTC+7).
+    This gets the current UTC time and adds 7 hours to get WIB time.
+    """
+    # Get current UTC time
+    utc_now = datetime.now(timezone.utc)
+    # Add 7 hours for WIB (UTC+7)
+    wib_naive = utc_now.replace(tzinfo=None) + timedelta(hours=7)
+    # Return as WIB timezone
+    return wib_naive.replace(tzinfo=WIB)
 
 # Database path
 DATABASE_PATH = Path(__file__).parent.parent.parent / "smart_absensi.db"
@@ -503,14 +518,37 @@ def create_absensi(
     device: Optional[str] = None,
     location: Optional[str] = None,
     ip_address: Optional[str] = None,
-    notes: Optional[str] = None
+    notes: Optional[str] = None,
+    timestamp: Optional[datetime] = None
 ) -> Optional[Dict]:
     """
     Create new absensi record with duplicate prevention.
     Returns existing record if already attended today.
+    Uses WIB timezone for timestamp if not provided.
     """
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Use WIB timezone for timestamp
+    if timestamp is None:
+        timestamp = get_wib_now()
+    elif timestamp.tzinfo is None:
+        # If naive datetime, assume it's already in WIB and add timezone info
+        timestamp = timestamp.replace(tzinfo=WIB)
+    elif timestamp.tzinfo != WIB:
+        # Convert to WIB timezone if it's in a different timezone
+        # First convert to UTC, then add 7 hours for WIB
+        utc_time = timestamp.astimezone(timezone.utc)
+        utc_naive = utc_time.replace(tzinfo=None)
+        wib_naive = utc_naive + timedelta(hours=7)
+        timestamp = wib_naive.replace(tzinfo=WIB)
+    
+    # Format timestamp for SQLite (YYYY-MM-DD HH:MM:SS) - store as WIB time
+    # Get the naive datetime in WIB (which is what we want to store)
+    timestamp_naive = timestamp.replace(tzinfo=None)
+    timestamp_str = timestamp_naive.strftime('%Y-%m-%d %H:%M:%S')
+    
+    logger.debug(f"Storing timestamp: {timestamp_str} (WIB)")
     
     today = date.today().isoformat()
     
@@ -522,9 +560,9 @@ def create_absensi(
     
     try:
         cursor.execute("""
-            INSERT INTO absensi (user_id, attendance_date, status, confidence, photo_path, device, location, ip_address, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, today, status, confidence, photo_path, device, location, ip_address, notes))
+            INSERT INTO absensi (user_id, attendance_date, status, confidence, photo_path, device, location, ip_address, notes, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, today, status, confidence, photo_path, device, location, ip_address, notes, timestamp_str))
         
         conn.commit()
         absensi_id = cursor.lastrowid

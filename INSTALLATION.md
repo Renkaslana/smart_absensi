@@ -234,6 +234,26 @@ jupyter notebook
 NEXT_PUBLIC_API_URL=http://localhost:8001
 ```
 
+### Timezone Configuration
+
+**Sistem menggunakan WIB (Western Indonesian Time, UTC+7)** untuk semua timestamp absensi.
+
+- ✅ **Record Baru**: Otomatis menggunakan waktu WIB
+- ⚠️ **Record Lama**: Jika ada record lama yang masih menggunakan UTC, jalankan migration script:
+  ```bash
+  python backend/migrate_timestamps_to_wib.py
+  ```
+  Script ini akan:
+  - Membuat backup database otomatis
+  - Mengkonversi timestamp UTC ke WIB (menambahkan 7 jam)
+  - Meminta konfirmasi sebelum melakukan perubahan
+
+**Dependencies Frontend untuk Timezone:**
+- `date-fns`: ^3.0.6 (date formatting)
+- `date-fns-tz`: ^3.2.0 (timezone handling)
+
+Kedua package ini sudah termasuk di `package.json` dan akan terinstall otomatis saat `npm install`.
+
 ### Face Recognition Settings
 
 Edit di `backend/routes/face.py`:
@@ -252,6 +272,25 @@ face_recognizer = FaceRecognizer(
 | `min_photos` | 3 | 3-10 | Minimum foto registrasi |
 
 ---
+
+## 🔄 Migration Timestamp (Record Lama)
+
+Jika Anda memiliki record absensi lama yang dibuat sebelum update timezone, jalankan script migration:
+
+```bash
+# Pastikan Anda berada di root folder project
+python backend/migrate_timestamps_to_wib.py
+```
+
+**Proses Migration:**
+1. Script akan membuat backup database otomatis
+2. Mengasumsikan timestamp lama adalah UTC
+3. Menambahkan 7 jam untuk mengkonversi ke WIB
+4. Meminta konfirmasi sebelum melakukan perubahan
+
+**Backup File Format:** `smart_absensi_backup_YYYYMMDD_HHMMSS.db`
+
+> ⚠️ **PENTING**: Selalu backup database sebelum migration, atau gunakan backup otomatis yang dibuat script.
 
 ## 🔍 Troubleshooting
 

@@ -18,6 +18,7 @@ from pathlib import Path
 from .auth import get_current_user, get_admin_user
 from ..database import (
     create_absensi,
+    get_wib_now,
     get_absensi_by_user,
     get_absensi_today,
     get_all_absensi,
@@ -165,7 +166,8 @@ async def submit_absensi(
         logger.info(f"Multiple absensi today for {user['nim']}")
     
     # Save photo
-    timestamp = datetime.now()
+    # Use WIB timezone for timestamp
+    timestamp = get_wib_now()
     photo_filename = f"{user['name']}_{user['nim']}_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
     photo_path = OUTPUT_DIR / photo_filename
     
@@ -184,7 +186,7 @@ async def submit_absensi(
     
     cv2.imwrite(str(photo_path), image)
     
-    # Create absensi record
+    # Create absensi record with WIB timestamp
     absensi = create_absensi(
         user_id=user["id"],
         status="hadir",
@@ -192,7 +194,8 @@ async def submit_absensi(
         photo_path=photo_filename,
         device=data.device_info,
         location=data.location,
-        ip_address=client_ip
+        ip_address=client_ip,
+        timestamp=timestamp
     )
     
     logger.info(f"Absensi recorded: {user['name']} ({user['nim']}) - {recognized['confidence']:.1f}%")

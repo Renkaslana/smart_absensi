@@ -96,6 +96,7 @@ pip install -r requirements.txt
 # 2. Setup Frontend
 cd frontend
 npm install
+# Note: date-fns-tz akan terinstall otomatis untuk timezone handling (WIB)
 
 # 3. Buat Admin User
 cd ..
@@ -214,6 +215,8 @@ jupyter notebook
 | Framer Motion | - | Animations |
 | Axios | - | HTTP Client |
 | react-webcam | - | Camera Access |
+| date-fns | 3.0.6+ | Date formatting |
+| date-fns-tz | 3.2.0+ | Timezone handling (WIB) |
 
 ---
 
@@ -240,6 +243,20 @@ NEXT_PUBLIC_API_URL=http://localhost:8001
 | `min_photos` | 3 | Minimum photos for registration |
 
 ---
+
+## 🔄 Migration Timestamp (Record Lama)
+
+Jika Anda memiliki record absensi lama yang masih menggunakan UTC, jalankan script migration:
+
+```bash
+# Backup otomatis akan dibuat sebelum migration
+python backend/migrate_timestamps_to_wib.py
+```
+
+**Catatan:**
+- Script ini mengasumsikan timestamp lama adalah UTC
+- Akan menambahkan 7 jam untuk mengkonversi ke WIB
+- Backup database dibuat otomatis dengan format: `smart_absensi_backup_YYYYMMDD_HHMMSS.db`
 
 ## 🔍 Troubleshooting
 
@@ -286,6 +303,14 @@ Pastikan backend sudah running dan URL di `.env.local` benar.
 ---
 
 ## 📝 Catatan Penting
+
+### Timezone & Timestamp
+- ⏰ **Timezone**: Sistem menggunakan **WIB (Western Indonesian Time, UTC+7)** untuk semua timestamp absensi
+- 📅 **Record Baru**: Semua absensi baru otomatis menggunakan waktu WIB
+- 🔄 **Record Lama**: Record lama yang dibuat sebelum update mungkin masih menggunakan UTC
+  - Untuk mengkonversi record lama ke WIB, jalankan: `python backend/migrate_timestamps_to_wib.py`
+  - Script ini akan menambahkan 7 jam ke timestamp yang ada (mengasumsikan UTC)
+  - **PENTING**: Backup database akan dibuat otomatis sebelum migration
 
 ### Keamanan
 - ⚠️ Jangan share folder `encodings/` dan `dataset_wajah/`

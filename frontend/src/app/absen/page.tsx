@@ -18,7 +18,9 @@ import {
   ArrowLeft,
   History,
   Award,
-  Sparkles
+  Sparkles,
+  Power,
+  PowerOff
 } from 'lucide-react';
 import { publicApi, canvasToBase64 } from '@/lib/api';
 import { format } from 'date-fns';
@@ -56,6 +58,10 @@ export default function AbsenPage() {
   const [userKelas, setUserKelas] = useState('');
   const [confidence, setConfidence] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [autoScanEnabled, setAutoScanEnabled] = useState(true);
+  const [lastScanTime, setLastScanTime] = useState<number>(0);
+  const [faceStableCount, setFaceStableCount] = useState(0);
+  const [webcamReady, setWebcamReady] = useState(false);
   const [todayStats, setTodayStats] = useState<{
     today_attendance: number;
     total_students: number;
@@ -69,32 +75,26 @@ export default function AbsenPage() {
     facingMode: 'user',
   };
 
-  // Load today's stats
-  useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const response = await publicApi.getTodayStats();
-        setTodayStats(response.data);
-      } catch (error) {
-        console.error('Failed to load stats:', error);
-      }
-    };
-    loadStats();
-  }, []);
-
   // Handle face scan and attendance
   const handleScan = useCallback(async () => {
-    if (!webcamRef.current || isCapturing) return;
+    if (!webcamRef.current || isCapturing || !webcamReady) return;
 
     setIsCapturing(true);
     setStatus('scanning');
     setMessage('Memindai wajah...');
+    setLastScanTime(Date.now());
 
     try {
+      // Check if webcam is ready and video is playing
+      const video = webcamRef.current.video;
+      if (!video || video.readyState !== 4) {
+        throw new Error('Kamera belum siap. Mohon tunggu sebentar.');
+      }
+
       // Capture image from webcam
       const imageSrc = webcamRef.current.getScreenshot();
       if (!imageSrc) {
-        throw new Error('Gagal mengambil gambar dari kamera');
+        throw new Error('Gagal mengambil gambar dari kamera. Pastikan kamera sudah aktif.');
       }
 
       // Extract base64 data (remove data URL prefix)
@@ -147,7 +147,36 @@ export default function AbsenPage() {
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing]);
+  }, [isCapturing, webcamReady]);
+
+  // Load today's stats
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const response = await publicApi.getTodayStats();
+        setTodayStats(response.data);
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    };
+    loadStats();
+  }, []);
+
+  // Auto-scan interval (every 2 seconds when idle and auto-scan enabled)
+  useEffect(() => {
+    if (!autoScanEnabled || status !== 'idle' || isCapturing || !webcamReady) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      // Debounce: only scan if last scan was more than 5 seconds ago
+      // Also check if webcam is ready
+      if (now - lastScanTime > 5000 && webcamRef.current && webcamReady) {
+        handleScan();
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [autoScanEnabled, status, isCapturing, lastScanTime, handleScan, webcamReady]);
 
   // Reset to try again
   const handleReset = () => {
@@ -158,6 +187,7 @@ export default function AbsenPage() {
     setUserName('');
     setUserNim('');
     setConfidence(null);
+    setLastScanTime(Date.now()); // Reset debounce timer
   };
 
   return (
@@ -263,6 +293,15 @@ export default function AbsenPage() {
                 screenshotFormat="image/jpeg"
                 videoConstraints={videoConstraints}
                 className="w-full h-full object-cover"
+                onUserMedia={() => {
+                  setWebcamReady(true);
+                  setMessage('Kamera siap. Posisikan wajah Anda di dalam frame');
+                }}
+                onUserMediaError={(error) => {
+                  setWebcamReady(false);
+                  setMessage('Gagal mengakses kamera. Pastikan izin kamera sudah diberikan.');
+                  console.error('Webcam error:', error);
+                }}
               />
               
               {/* Face Guide Overlay */}
@@ -308,9 +347,14 @@ export default function AbsenPage() {
                   status === 'duplicate' ? 'bg-orange-500/90' :
                   status === 'failed' ? 'bg-red-500/90' :
                   status === 'scanning' ? 'bg-yellow-500/90' :
-                  'bg-black/50'
+                  autoScanEnabled ? 'bg-blue-500/90' : 'bg-black/50'
                 } text-white text-center`}>
-                  <p className="text-sm font-medium">{message}</p>
+                  <p className="text-sm font-medium">
+                    {status === 'idle' && autoScanEnabled 
+                      ? '🔄 Auto-scan aktif - Memindai otomatis...' 
+                      : message
+                    }
+                  </p>
                 </div>
               </div>
             </div>
@@ -439,8 +483,35 @@ export default function AbsenPage() {
                   exit={{ opacity: 0, y: -20 }}
                   className="text-center"
                 >
+                  {/* Auto-scan Toggle */}
+                  <div className="mb-4 flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => setAutoScanEnabled(!autoScanEnabled)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                        autoScanEnabled
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {autoScanEnabled ? (
+                        <>
+                          <Power className="w-4 h-4" />
+                          <span className="text-sm font-medium">Auto-scan Aktif</span>
+                        </>
+                      ) : (
+                        <>
+                          <PowerOff className="w-4 h-4" />
+                          <span className="text-sm font-medium">Auto-scan Nonaktif</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   <p className="text-gray-600 mb-6">
-                    Pastikan wajah Anda terlihat jelas di kamera dan berada di dalam garis panduan.
+                    {autoScanEnabled 
+                      ? 'Sistem akan otomatis memindai wajah Anda. Pastikan wajah terlihat jelas di kamera.'
+                      : 'Pastikan wajah Anda terlihat jelas di kamera dan berada di dalam garis panduan.'
+                    }
                   </p>
                   
                   <button
@@ -460,13 +531,16 @@ export default function AbsenPage() {
                     ) : (
                       <span className="flex items-center justify-center">
                         <Scan className="w-5 h-5 mr-2" />
-                        Mulai Scan Wajah
+                        {autoScanEnabled ? 'Scan Manual' : 'Mulai Scan Wajah'}
                       </span>
                     )}
                   </button>
                   
                   <p className="text-xs text-gray-400 mt-4">
-                    Dengan menekan tombol di atas, Anda menyetujui penggunaan data wajah untuk keperluan absensi.
+                    {autoScanEnabled 
+                      ? 'Sistem akan otomatis memindai setiap beberapa detik. Anda juga bisa klik tombol di atas untuk scan manual.'
+                      : 'Dengan menekan tombol di atas, Anda menyetujui penggunaan data wajah untuk keperluan absensi.'
+                    }
                   </p>
                 </motion.div>
               )}

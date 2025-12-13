@@ -2,6 +2,7 @@
 from .db_service import (
     init_database,
     get_connection,
+    get_wib_now,
     
     # User operations
     create_user,
@@ -56,6 +57,7 @@ __all__ = [
     # Core
     "init_database",
     "get_connection",
+    "get_wib_now",
     
     # Users
     "create_user",

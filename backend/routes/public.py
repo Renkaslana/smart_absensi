@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, date
+from ..database import get_wib_now
 import numpy as np
 import cv2
 import base64
@@ -198,7 +199,8 @@ async def scan_attendance(
         }
     
     # Save photo with face detection box
-    timestamp = datetime.now()
+    # Use WIB timezone for timestamp
+    timestamp = get_wib_now()
     photo_filename = f"{user['nim']}_{timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
     photo_path = OUTPUT_DIR / photo_filename
     
@@ -217,7 +219,7 @@ async def scan_attendance(
     
     cv2.imwrite(str(photo_path), image)
     
-    # Create absensi record
+    # Create absensi record with WIB timestamp
     absensi = create_absensi(
         user_id=user["id"],
         status="hadir",
@@ -225,7 +227,8 @@ async def scan_attendance(
         photo_path=photo_filename,
         device=data.device_info,
         location=data.location,
-        ip_address=client_ip
+        ip_address=client_ip,
+        timestamp=timestamp
     )
     
     # Check if duplicate was caught by database
@@ -386,4 +389,39 @@ async def get_today_statistics(request: Request):
         "total_students": stats["total_students"],
         "registered_faces": stats["registered_faces"],
         "attendance_rate": round((today_count / stats["total_students"] * 100) if stats["total_students"] > 0 else 0, 1)
+    }
+
+
+@router.get("/latest-attendance")
+async def get_latest_attendance(
+    request: Request,
+    limit: int = 50
+):
+    """
+    Get today's attendance records (public, no auth required).
+    Shows only today's attendance with user information.
+    """
+    from ..database import get_today_attendance_list
+    
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if rate_limiter.is_rate_limited(client_ip, limit=60, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Terlalu banyak request. Mohon tunggu sebentar."
+        )
+    
+    # Get today's attendance records only
+    records = get_today_attendance_list()
+    
+    # Limit results if needed
+    if limit and len(records) > limit:
+        records = records[:limit]
+    
+    return {
+        "success": True,
+        "records": records,
+        "total": len(records),
+        "date": date.today().isoformat(),
+        "limit": limit
     }

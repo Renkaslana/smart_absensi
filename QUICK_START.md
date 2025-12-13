@@ -11,8 +11,21 @@ Panduan cepat untuk menjalankan Smart Absensi dalam 5 menit!
 - ✅ Node.js 18+
 - ✅ Anaconda/Miniconda
 
-### Install & Run (5 Langkah)
+### Install & Run (Super Simple!)
 
+**Opsi A: Otomatis (RECOMMENDED) - Hanya 1 Langkah!**
+```bash
+# Jalankan script ini - semua otomatis!
+start_webapp.bat
+```
+
+Script ini akan otomatis:
+- ✅ Install frontend dependencies (jika belum)
+- ✅ Install backend dependencies (jika belum)
+- ✅ **Membuat admin user** (jika belum ada)
+- ✅ Start backend dan frontend server
+
+**Opsi B: Manual Setup (Jika perlu)**
 ```bash
 # 1. Setup Backend
 conda create -n smart-absensi python=3.11 -y
@@ -24,24 +37,15 @@ cd frontend
 npm install
 cd ..
 
-# 3. Buat Admin
-python create_admin.py
-
-# 4. Jalankan (pilih salah satu)
-
-# Opsi A: Script (Windows)
-start_webapp.bat
-
-# Opsi B: Manual (2 terminal)
+# 3. Jalankan (2 terminal)
 # Terminal 1:
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
 
 # Terminal 2:
 cd frontend && npm run dev
-
-# 5. Buka Browser
-# http://localhost:3000
 ```
+
+> 💡 **Catatan**: Admin user **otomatis dibuat** saat pertama kali run `start_webapp.bat`. Tidak perlu manual create admin!
 
 ### 🔐 Login Admin
 | Field | Value |
@@ -96,10 +100,14 @@ jupyter notebook
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-### dlib Error?
+### dlib Error? (Prototype only)
 ```bash
-# Windows: Gunakan prebuilt
-pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp311-cp311-win_amd64.whl
+# Windows: Gunakan conda-forge (PALING MUDAH!)
+conda activate smart-absensi
+pip uninstall dlib cmake -y
+conda remove cmake -y 2>nul
+conda install -c conda-forge dlib -y
+pip install face-recognition
 ```
 
 ### NumPy Error?

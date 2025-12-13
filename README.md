@@ -98,11 +98,7 @@ cd frontend
 npm install
 # Note: date-fns-tz akan terinstall otomatis untuk timezone handling (WIB)
 
-# 3. Buat Admin User
-cd ..
-python create_admin.py
-
-# 4. Jalankan (pilih salah satu)
+# 3. Jalankan (pilih salah satu)
 
 # Opsi A: Menggunakan script (Windows)
 start_webapp.bat
@@ -120,14 +116,37 @@ cd frontend && npm run dev
 - 📚 **API Docs**: http://localhost:8001/docs
 - 👤 **Admin Login**: `admin` / `admin123`
 
+> 💡 **Catatan**: Admin user **otomatis dibuat** saat pertama kali menjalankan `start_webapp.bat`. Script akan:
+> - Install dependencies (jika belum)
+> - Membuat admin user (jika belum ada)
+> - Start backend dan frontend server
+
 ### Versi Prototype (Jupyter Notebook)
 
+**Opsi A: Setup Otomatis (Recommended)**
+```bash
+# 1. Setup environment
+setup_prototype.bat
+
+# 2. Jalankan Jupyter
+start_project.bat
+
+# 3. Buka preprocessing.ipynb
+```
+
+**Opsi B: Setup Manual**
 ```bash
 # 1. Setup environment
 conda create -n smart-absensi python=3.11 -y
 conda activate smart-absensi
 conda install -c conda-forge opencv pandas jupyter pillow -y
-pip install numpy==1.26.4 cmake dlib face-recognition
+pip install numpy==1.26.4
+
+# 2. Install dlib via conda-forge (PALING MUDAH - tidak perlu CMake!)
+pip uninstall dlib cmake -y
+conda remove cmake -y 2>nul
+conda install -c conda-forge dlib -y
+pip install face-recognition
 
 # 2. Jalankan
 jupyter notebook
@@ -136,7 +155,9 @@ jupyter notebook
 # 3. Buka preprocessing.ipynb
 ```
 
-> 📖 **Panduan lengkap: [INSTALLATION.md](INSTALLATION.md)**
+> 📖 **Panduan lengkap: [INSTALLATION.md](INSTALLATION.md)**  
+> 🔧 **Troubleshooting: [TROUBLESHOOTING_PROTOTYPE.md](TROUBLESHOOTING_PROTOTYPE.md)**  
+> ⚡ **Quick Fix: [QUICK_FIX_PROTOTYPE.md](QUICK_FIX_PROTOTYPE.md)**
 
 ---
 
@@ -266,15 +287,23 @@ python backend/migrate_timestamps_to_wib.py
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-### face_recognition Install Error
-```bash
-# Windows: Install Visual C++ Build Tools dulu
-# Download: https://visualstudio.microsoft.com/downloads/
+### face_recognition Install Error (CMake/dlib)
 
-# Atau gunakan prebuilt wheel
-pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp311-cp311-win_amd64.whl
+**Solusi Cepat (Windows):**
+```bash
+# Jalankan script setup (sudah include fix dlib via conda-forge)
+setup_prototype.bat
+
+# Atau manual fix:
+conda activate smart-absensi
+pip uninstall dlib cmake -y
+conda remove cmake -y 2>nul
+conda install -c conda-forge dlib -y
 pip install face-recognition
 ```
+
+> ✅ **Conda-forge adalah PALING MUDAH - tidak memerlukan CMake atau Visual C++ Build Tools!**
+> ✅ **Jika conda-forge gagal, alternatif: gunakan prebuilt wheel (lihat INSTALLATION.md)**
 
 ### NumPy Compatibility
 ```bash

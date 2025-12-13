@@ -149,8 +149,9 @@ class FaceRecognizer:
         if not FACE_RECOGNITION_AVAILABLE:
             logger.warning("face_recognition not available, using OpenCV cascade")
             # Fallback to OpenCV Haar Cascade
+            from .preprocessing import get_haarcascade_path
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            face_cascade = cv2.CascadeClassifier(get_haarcascade_path('haarcascade_frontalface_default.xml'))
             faces = face_cascade.detectMultiScale(gray, 1.1, 4)
             # Convert to face_recognition format (top, right, bottom, left)
             return [(y, x + w, y + h, x) for (x, y, w, h) in faces]

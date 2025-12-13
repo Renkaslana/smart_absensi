@@ -21,7 +21,7 @@ if "%CONDA_ROOT%"=="" (
     echo.
     echo Silakan buka Anaconda Prompt secara manual, lalu:
     echo   1. conda activate smart-absensi
-    echo   2. cd "C:\my Project\Smart-Absensi"
+    echo   2. cd "C:\my Project\smart_absensi"
     echo   3. jupyter notebook
     echo.
     pause
@@ -42,7 +42,10 @@ if errorlevel 1 (
 )
 
 echo [3/3] Pindah ke direktori project...
-cd /d "C:\my Project\Smart-Absensi"
+cd /d "%~dp0"
+if errorlevel 1 (
+    cd /d "C:\my Project\smart_absensi"
+)
 if errorlevel 1 (
     echo ERROR: Direktori tidak ditemukan!
     pause

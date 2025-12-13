@@ -40,6 +40,31 @@ async def lifespan(app: FastAPI):
     init_database()
     logger.info("Database initialized")
     
+    # Auto-create admin user if not exists
+    try:
+        from backend.database.db_service import get_user_by_nim, create_user
+        from backend.utils.security import hash_password
+        
+        admin = get_user_by_nim('admin')
+        if not admin:
+            logger.info("Creating default admin user...")
+            password_hash = hash_password('admin123')
+            admin_user = create_user(
+                nim='admin',
+                name='Administrator',
+                password_hash=password_hash,
+                email='admin@smartabsensi.com',
+                role='admin'
+            )
+            if admin_user:
+                logger.info("Admin user created: NIM=admin, Password=admin123")
+            else:
+                logger.warning("Failed to create admin user")
+        else:
+            logger.info("Admin user already exists")
+    except Exception as e:
+        logger.error(f"Error creating admin user: {e}")
+    
     # Create required directories
     dirs = ["encodings", "dataset_wajah", "output", "uploads"]
     for dir_name in dirs:

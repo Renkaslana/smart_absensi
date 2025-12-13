@@ -60,6 +60,46 @@ if not exist "frontend\node_modules" (
     echo [OK] Frontend dependencies installed
 )
 
+:: Check and setup backend (dependencies + admin user)
+echo.
+echo [INFO] Setting up backend...
+if defined CONDA_PATH (
+    echo [INFO] Checking backend dependencies...
+    call "%CONDA_PATH%\Scripts\activate.bat" %CONDA_ENV% >nul 2>&1
+    python -c "import fastapi" >nul 2>&1
+    if errorlevel 1 (
+        echo [INFO] Installing backend dependencies...
+        call "%CONDA_PATH%\Scripts\activate.bat" %CONDA_ENV% && pip install -r requirements.txt >nul 2>&1
+        echo [OK] Backend dependencies installed
+    )
+    
+    echo [INFO] Checking admin user...
+    call "%CONDA_PATH%\Scripts\activate.bat" %CONDA_ENV% && python create_admin.py
+    if errorlevel 0 (
+        echo [OK] Admin user ready
+    ) else (
+        echo [WARNING] Failed to create admin user, but continuing...
+        echo [INFO] Admin will be auto-created when backend starts
+    )
+) else (
+    echo [INFO] Checking backend dependencies...
+    python -c "import fastapi" >nul 2>&1
+    if errorlevel 1 (
+        echo [INFO] Installing backend dependencies...
+        pip install -r requirements.txt >nul 2>&1
+        echo [OK] Backend dependencies installed
+    )
+    
+    echo [INFO] Checking admin user...
+    python create_admin.py
+    if errorlevel 0 (
+        echo [OK] Admin user ready
+    ) else (
+        echo [WARNING] Failed to create admin user, but continuing...
+        echo [INFO] Admin will be auto-created when backend starts
+    )
+)
+
 echo.
 echo [INFO] Memulai Smart Absensi...
 echo.
@@ -99,9 +139,14 @@ echo   - Cek Riwayat:       http://localhost:3000/riwayat
 echo   - Admin Dashboard:   http://localhost:3000/admin
 echo   - Login:             http://localhost:3000/login
 echo.
+echo   Admin Credentials:
+echo   - NIM:      admin
+echo   - Password: admin123
+echo.
 echo   Catatan:
 echo   - Tutup window CMD untuk menghentikan server
 echo   - Backend dan Frontend berjalan di window terpisah
+echo   - Admin user otomatis dibuat saat pertama kali run
 echo ================================================
 echo.
 echo Tekan tombol apapun untuk menutup window ini...

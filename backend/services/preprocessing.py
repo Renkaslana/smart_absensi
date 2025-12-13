@@ -12,8 +12,41 @@ import cv2
 import numpy as np
 from typing import Tuple, Optional, List
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+def get_haarcascade_path(filename: str) -> str:
+    """
+    Get haarcascade file path compatible with all OpenCV versions.
+    
+    Args:
+        filename: Haarcascade filename (e.g., 'haarcascade_frontalface_default.xml')
+        
+    Returns:
+        Full path to haarcascade file
+    """
+    # Try cv2.data (OpenCV 3.4+)
+    if hasattr(cv2, 'data') and hasattr(cv2.data, 'haarcascades'):
+        return cv2.data.haarcascades + filename
+    
+    # Try alternative paths
+    opencv_path = os.path.dirname(cv2.__file__)
+    possible_paths = [
+        os.path.join(opencv_path, 'data', 'haarcascades', filename),
+        os.path.join(opencv_path, 'share', 'opencv4', 'haarcascades', filename),
+        os.path.join(opencv_path, '..', 'share', 'opencv4', 'haarcascades', filename),
+        os.path.join(opencv_path, '..', 'data', 'haarcascades', filename),
+    ]
+    
+    for path in possible_paths:
+        abs_path = os.path.abspath(path)
+        if os.path.exists(abs_path):
+            return abs_path
+    
+    # Fallback: return relative path (might work if installed correctly)
+    logger.warning(f"Haarcascade {filename} not found in standard paths, using fallback")
+    return filename
 
 class FacePreprocessor:
     """
@@ -50,12 +83,12 @@ class FacePreprocessor:
         
         # Eye cascade for alignment (dlib-free alternative)
         self.eye_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_eye.xml'
+            get_haarcascade_path('haarcascade_eye.xml')
         )
         
         # Face cascade for detection
         self.face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            get_haarcascade_path('haarcascade_frontalface_default.xml')
         )
         
         logger.info("FacePreprocessor initialized with enhanced settings")

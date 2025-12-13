@@ -112,27 +112,36 @@ npm install --legacy-peer-deps
 # NEXT_PUBLIC_API_URL=http://localhost:8001
 ```
 
-### Step 4: Setup Database & Admin
+### Step 4: Jalankan Aplikasi
 
+#### Opsi A: Menggunakan Script (Windows) - RECOMMENDED
+```bash
+# Double-click atau jalankan:
+start_webapp.bat
+```
+
+**Script ini akan otomatis:**
+- ✅ Install frontend dependencies (jika belum)
+- ✅ Install backend dependencies (jika belum)
+- ✅ **Membuat admin user otomatis** (jika belum ada)
+- ✅ Start backend server
+- ✅ Start frontend server
+
+**Admin akan otomatis dibuat dengan kredensial:**
+- NIM: `admin`
+- Password: `admin123`
+
+> 💡 **Catatan**: Admin hanya dibuat sekali. Jika sudah ada, script akan skip dan menggunakan admin yang sudah ada.
+
+#### Opsi B: Manual Setup (Jika perlu)
+
+**Setup Database & Admin Manual:**
 ```bash
 # Kembali ke root folder
 cd ..
 
-# Buat admin user
+# Buat admin user (opsional - sudah otomatis di start_webapp.bat)
 python create_admin.py
-
-# Output:
-# Admin user created successfully!
-# NIM: admin
-# Password: admin123
-```
-
-### Step 5: Jalankan Aplikasi
-
-#### Opsi A: Menggunakan Script (Windows)
-```bash
-# Double-click atau jalankan:
-start_webapp.bat
 ```
 
 #### Opsi B: Manual (2 Terminal)
@@ -155,7 +164,7 @@ cd frontend
 npm run dev
 ```
 
-### Step 6: Akses Aplikasi
+### Step 5: Akses Aplikasi
 
 | Service | URL |
 |---------|-----|
@@ -163,14 +172,42 @@ npm run dev
 | **API Docs** | http://localhost:8001/docs |
 | **Admin Login** | NIM: `admin`, Password: `admin123` |
 
+> 💡 **Penting**: Admin user **otomatis dibuat** saat pertama kali menjalankan `start_webapp.bat`. Tidak perlu menjalankan `create_admin.py` secara manual.
+
 ---
 
 ## 🔬 Instalasi Versi Prototype (Jupyter Notebook)
 
 > ℹ️ Versi prototype menggunakan Jupyter Notebook untuk development dan testing.
 
-### Step 1: Setup Environment
+### Quick Start (2 Langkah Saja!)
 
+**Langkah 1: Setup Environment**
+```bash
+# Jalankan script setup (install semua dependencies)
+setup_prototype.bat
+```
+
+**Langkah 2: Jalankan Project**
+```bash
+# Jalankan Jupyter Notebook
+start_project.bat
+```
+
+**Selesai!** Buka `preprocessing.ipynb` di Jupyter Notebook.
+
+---
+
+
+Script ini akan otomatis:
+- ✅ Membuat/mengaktifkan conda environment
+- ✅ Install semua dependencies (opencv, pandas, jupyter, pillow)
+- ✅ Install NumPy 1.26.4
+- ✅ Install dlib via conda-forge (tidak perlu CMake!)
+- ✅ Install face-recognition
+- ✅ Verifikasi semua library terinstall dengan benar
+
+**Opsi B: Manual Setup**
 ```bash
 # 1. Buat conda environment
 conda create -n smart-absensi python=3.11 -y
@@ -184,13 +221,45 @@ conda install -c conda-forge opencv pandas jupyter pillow -y
 # 4. Install NumPy versi spesifik (PENTING!)
 pip install numpy==1.26.4
 
-# 5. Install face recognition libraries
-pip install cmake
-pip install dlib
+# 5. Install dlib via conda-forge (PALING MUDAH - RECOMMENDED!)
+# Bersihkan dlib lama jika ada
+pip uninstall dlib cmake -y
+conda remove cmake -y 2>nul
+
+# Install dlib via conda-forge (tidak perlu CMake atau Visual C++!)
+conda install -c conda-forge dlib -y
+
+# 6. Install face-recognition
 pip install face-recognition
 ```
 
-### Step 2: Jalankan Jupyter Notebook
+> ⚠️ **PENTING**: 
+> - Pastikan NumPy versi 1.26.4! Versi lain (terutama 2.x) akan menyebabkan error.
+> - **Metode conda-forge adalah PALING MUDAH** - tidak perlu CMake atau Visual C++ Build Tools!
+> - Jika conda-forge gagal, alternatif: gunakan prebuilt wheel (lihat troubleshooting).
+
+### Step 2: Verifikasi Instalasi
+
+```bash
+# Pastikan environment aktif
+conda activate smart-absensi
+
+# Verifikasi versi library
+python -c "import numpy; print(f'NumPy: {numpy.__version__}')"  # Harus 1.26.4
+python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
+python -c "import dlib; print(f'dlib: {dlib.__version__}')"
+python -c "import face_recognition; print(f'Face Recognition: {face_recognition.__version__}')"
+```
+
+**Output yang diharapkan:**
+```
+NumPy: 1.26.4
+OpenCV: 4.11.0
+dlib: 19.24.2
+Face Recognition: 1.3.0
+```
+
+### Step 3: Jalankan Jupyter Notebook
 
 ```bash
 # Opsi A: Menggunakan script (Windows)
@@ -201,15 +270,46 @@ conda activate smart-absensi
 jupyter notebook
 ```
 
-### Step 3: Buka dan Gunakan
+> 💡 **Tips**: Jika Jupyter tidak menggunakan environment yang benar, install kernel:
+> ```bash
+> pip install ipykernel
+> python -m ipykernel install --user --name smart-absensi --display-name "Python (smart-absensi)"
+> ```
+> Lalu di Jupyter: **Kernel → Change Kernel → Python (smart-absensi)**
+
+### Step 4: Buka dan Gunakan
 
 1. Jupyter akan terbuka di browser
 2. Buka file `preprocessing.ipynb`
-3. Jalankan cells sesuai kebutuhan:
+3. **Pastikan kernel yang benar dipilih**: Kernel → Change Kernel → Python (smart-absensi)
+4. Jalankan cells sesuai kebutuhan:
    - **Section A**: Test kamera
    - **Section B**: Registrasi wajah
    - **Section C**: Absensi realtime
    - **Section D**: Visualisasi data
+
+---
+
+## 📝 Ringkasan Instalasi Prototype
+
+**Untuk user yang baru clone project:**
+
+1. **Jalankan setup sekali:**
+   ```bash
+   setup_prototype.bat
+   ```
+   Script ini akan install semua yang diperlukan, termasuk dlib via conda-forge.
+
+2. **Jalankan project:**
+   ```bash
+   start_project.bat
+   ```
+
+3. **Buka `preprocessing.ipynb` di Jupyter Notebook**
+
+**Selesai!** Tidak perlu install CMake atau Visual C++ Build Tools karena menggunakan conda-forge.
+
+> 📖 **Troubleshooting lengkap**: Lihat bagian [Troubleshooting](#-troubleshooting) di bawah
 
 ---
 
@@ -312,33 +412,87 @@ NEXT_PUBLIC_API_URL=http://localhost:8001
 
 ### 2. dlib/face_recognition Install Error
 
-**Problem**: `error: Microsoft Visual C++ 14.0 or greater is required`
+**Problem**: 
+- `CMake is not installed on your system`
+- `error: Microsoft Visual C++ 14.0 or greater is required`
+- `Failed building wheel for dlib`
 
-**Solution A**: Install Visual C++ Build Tools
+**Solution A: Install via Conda-Forge (PALING MUDAH) - RECOMMENDED**
+
+**Menggunakan Script Setup (Sudah Include Fix):**
 ```bash
-# Download dari:
-# https://visualstudio.microsoft.com/downloads/
-# Pilih "Build Tools for Visual Studio"
-# Install dengan "Desktop development with C++"
+# Jalankan script setup (sudah include install dlib via conda-forge)
+setup_prototype.bat
 ```
 
-**Solution B**: Gunakan prebuilt wheel
+**Manual Fix (Jika sudah ada environment):**
 ```bash
+conda activate smart-absensi
+
+# Bersihkan dlib lama
+pip uninstall dlib cmake -y
+conda remove cmake -y 2>nul
+
+# Install dlib via conda-forge (PALING MUDAH!)
+conda install -c conda-forge dlib -y
+
+# Install face-recognition
+pip install face-recognition
+```
+
+> ✅ **Ini adalah solusi TERMUDAH untuk Windows - tidak perlu CMake atau Visual C++!**
+> ✅ **Conda-forge sudah include precompiled dlib, jadi tidak perlu build dari source.**
+
+**Solution A2: Gunakan Prebuilt Wheel (Alternatif)**
+
+Jika conda-forge tidak berfungsi:
+```bash
+conda activate smart-absensi
+pip uninstall dlib -y
 pip install https://github.com/jloh02/dlib/releases/download/v19.22/dlib-19.22.99-cp311-cp311-win_amd64.whl
 pip install face-recognition
 ```
+
+**Solution B: Install CMake dan Visual C++ Build Tools**
+
+Hanya jika prebuilt wheel tidak berfungsi:
+
+1. **Install CMake:**
+   - Download dari: https://cmake.org/download/
+   - **PENTING**: Centang "Add CMake to system PATH"
+   - Restart terminal
+
+2. **Install Visual C++ Build Tools:**
+   - Download dari: https://visualstudio.microsoft.com/downloads/
+   - Pilih "Build Tools for Visual Studio"
+   - Install workload "Desktop development with C++"
+   - Restart terminal
+
+3. **Install dlib:**
+   ```bash
+   conda activate smart-absensi
+   pip install cmake dlib face-recognition
+   ```
 
 ---
 
 ### 3. NumPy Compatibility Error
 
-**Problem**: `Unsupported image type, must be 8bit gray or RGB image`
+**Problem**: 
+- `Unsupported image type, must be 8bit gray or RGB image`
+- NumPy version tidak sesuai (terlihat di output notebook)
 
 **Solution**:
 ```bash
+conda activate smart-absensi
 pip uninstall numpy -y
 pip install numpy==1.26.4
+
+# Verifikasi
+python -c "import numpy; print(numpy.__version__)"  # Harus menampilkan 1.26.4
 ```
+
+> ⚠️ **PENTING**: NumPy 2.x tidak kompatibel! Harus versi 1.26.4
 
 ---
 

@@ -14,13 +14,17 @@ import {
   User,
   ChevronDown,
   Shield,
-  Camera
+  Camera,
+  Scan
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
+import { Home } from 'lucide-react';
 
 const adminNavItems = [
+  { href: '/', icon: Home, label: 'Beranda' },
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/absen', icon: Scan, label: 'Mulai Absensi' },
   { href: '/admin/students', icon: Users, label: 'Data Mahasiswa' },
   { href: '/admin/face-register', icon: Camera, label: 'Registrasi Wajah' },
   { href: '/admin/reports', icon: FileBarChart, label: 'Laporan' },
@@ -41,6 +45,7 @@ export default function AdminLayout({
 
   // Check authentication and admin role
   useEffect(() => {
+    // Only check after initial load is complete
     if (!isLoading) {
       if (!isAuthenticated) {
         router.push('/login');
@@ -48,19 +53,25 @@ export default function AdminLayout({
         router.push('/dashboard');
       }
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [isAuthenticated, isLoading, user?.role, router]);
 
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
 
-  if (isLoading || !isAuthenticated || user?.role !== 'admin') {
+  // Show loading only when actually loading or when not authenticated
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="spinner text-primary-600" />
       </div>
     );
+  }
+
+  // Don't render if not authenticated or not admin (will redirect in useEffect)
+  if (!isAuthenticated || user?.role !== 'admin') {
+    return null;
   }
 
   return (

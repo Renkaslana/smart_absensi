@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
-      isLoading: true,
+      isLoading: false,
 
       setAuth: (user: User, accessToken: string, refreshToken: string) => {
         // Store in localStorage
@@ -99,44 +99,12 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Set isLoading to false after rehydration is complete
+        if (state) {
+          state.isLoading = false;
+        }
+      },
     }
   )
 );
-
-// =============================================================================
-// INITIALIZE AUTH STATE FROM LOCALSTORAGE
-// =============================================================================
-
-if (typeof window !== 'undefined') {
-  // Initialize auth state from localStorage on mount
-  const storedUser = localStorage.getItem('user');
-  const storedAccessToken = localStorage.getItem('access_token');
-  const storedRefreshToken = localStorage.getItem('refresh_token');
-
-  if (storedUser && storedAccessToken) {
-    try {
-      const user = JSON.parse(storedUser);
-      useAuthStore.setState({
-        user,
-        accessToken: storedAccessToken,
-        refreshToken: storedRefreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } catch (error) {
-      console.error('Error parsing stored user:', error);
-      useAuthStore.setState({
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    }
-  } else {
-    useAuthStore.setState({
-      isLoading: false,
-    });
-  }
-}
-

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -17,6 +17,7 @@ import { useAuthStore } from '@/lib/store';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { isAuthenticated, user, isLoading: authLoading } = useAuthStore();
   const setAuth = useAuthStore((state) => state.setAuth);
   
   const [formData, setFormData] = useState({
@@ -26,6 +27,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      if (user.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [isAuthenticated, user, authLoading, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useAuthStore } from '@/lib/store';
 import { 
   ShieldCheck, 
   Users, 
@@ -57,6 +58,8 @@ const benefits = [
 ];
 
 export default function LandingPage() {
+  const { isAuthenticated, user } = useAuthStore();
+  
   return (
     <div className="min-h-screen">
       {/* Navigation */}
@@ -73,12 +76,28 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-neutral-600 hover:text-primary-600 transition-colors">Fitur</a>
               <a href="#benefits" className="text-neutral-600 hover:text-primary-600 transition-colors">Keunggulan</a>
-              <Link href="/login" className="btn-outline text-sm">
-                Masuk
-              </Link>
-              <Link href="/register" className="btn-primary text-sm">
-                Daftar Sekarang
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link 
+                    href={user?.role === 'admin' ? '/admin' : '/dashboard'} 
+                    className="btn-outline text-sm"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link href="/absen" className="btn-primary text-sm">
+                    Mulai Absensi
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="btn-outline text-sm">
+                    Masuk
+                  </Link>
+                  <Link href="/register" className="btn-primary text-sm">
+                    Daftar Sekarang
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

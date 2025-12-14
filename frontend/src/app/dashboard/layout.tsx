@@ -13,14 +13,16 @@ import {
   Menu,
   X,
   User,
-  ChevronDown
+  ChevronDown,
+  Home
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
 
 const navItems = [
+  { href: '/', icon: Home, label: 'Beranda' },
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/absensi', icon: Scan, label: 'Absensi' },
+  { href: '/absen', icon: Scan, label: 'Mulai Absensi' },
   { href: '/dashboard/face-register', icon: Camera, label: 'Daftar Wajah' },
   { href: '/dashboard/history', icon: History, label: 'Riwayat' },
   { href: '/dashboard/settings', icon: Settings, label: 'Pengaturan' },
@@ -40,6 +42,7 @@ export default function DashboardLayout({
 
   // Check authentication
   useEffect(() => {
+    // Only redirect after initial load is complete and not authenticated
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
@@ -50,12 +53,18 @@ export default function DashboardLayout({
     router.push('/login');
   };
 
-  if (isLoading || !isAuthenticated) {
+  // Show loading spinner while checking authentication
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="spinner text-primary-600" />
       </div>
     );
+  }
+
+  // Don't render if not authenticated (will redirect in useEffect)
+  if (!isAuthenticated) {
+    return null;
   }
 
   return (

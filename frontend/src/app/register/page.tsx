@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
   Scan, 
@@ -9,8 +11,23 @@ import {
   Shield,
   LogIn
 } from 'lucide-react';
+import { useAuthStore } from '@/lib/store';
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { isAuthenticated, user, isLoading: authLoading } = useAuthStore();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      if (user.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [isAuthenticated, user, authLoading, router]);
+
   return (
     <div className="min-h-screen gradient-hero flex items-center justify-center p-4 py-12">
       {/* Background Elements */}

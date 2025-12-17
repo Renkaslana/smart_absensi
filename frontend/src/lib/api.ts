@@ -254,6 +254,10 @@ export const adminAPI = {
     return api.get('/admin/students/dropdown');
   },
 
+  deleteStudent: async (studentId: number) => {
+    return api.delete(`/admin/students/${studentId}`);
+  },
+
   getUsers: async (params?: { limit?: number; offset?: number; role?: string; search?: string }) => {
     return api.get('/admin/users', { params });
   },

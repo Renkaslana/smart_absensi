@@ -9,7 +9,10 @@ from typing import Optional, List
 import logging
 import csv
 import io
+import os
+import shutil
 from datetime import date
+from pathlib import Path
 
 from .auth import get_admin_user, get_current_user
 from ..database import (
@@ -35,6 +38,10 @@ from ..utils.security import hash_password, sanitize_nim, sanitize_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+# Directories for face data
+ENCODINGS_DIR = Path(__file__).parent.parent.parent / "encodings"
+DATASET_DIR = Path(__file__).parent.parent.parent / "dataset_wajah"
 
 
 # =============================================================================
@@ -371,6 +378,86 @@ async def get_students_for_dropdown(
             for s in students
         ]
     }
+
+
+@router.delete("/students/{student_id}")
+async def delete_student(
+    student_id: int,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """
+    Delete a student account and all related data.
+    """
+    student = get_user_by_id(student_id)
+    
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found"
+        )
+    
+    # Verify it's a student (mahasiswa)
+    if student.get("role") != "mahasiswa":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not a student"
+        )
+    
+    # Prevent self-deletion
+    if student_id == admin_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+    
+    student_nim = student["nim"]
+    student_name = student["name"]
+    
+    # Remove encoding file if exists
+    encoding_file = ENCODINGS_DIR / f"{student_name}_{student_nim}.pickle"
+    if encoding_file.exists():
+        try:
+            os.remove(encoding_file)
+            logger.info(f"Deleted encoding file: {encoding_file}")
+        except Exception as e:
+            logger.warning(f"Failed to delete encoding file: {e}")
+    
+    # Remove dataset images if exists
+    student_folder = DATASET_DIR / student_nim
+    if student_folder.exists() and student_folder.is_dir():
+        try:
+            shutil.rmtree(student_folder)
+            logger.info(f"Deleted dataset folder: {student_folder}")
+        except Exception as e:
+            logger.warning(f"Failed to delete dataset folder: {e}")
+    
+    # Also try to remove old format dataset files
+    for i in range(1, 11):
+        img_file = DATASET_DIR / f"{student_name}_{student_nim}_{i}.jpg"
+        if img_file.exists():
+            try:
+                os.remove(img_file)
+            except Exception:
+                pass
+    
+    # Delete from database (this also deletes face_embeddings and absensi records)
+    success = delete_user(student_id)
+    
+    if success:
+        log_activity(
+            action="DELETE_STUDENT",
+            user_id=admin_user["id"],
+            entity_type="user",
+            entity_id=student_id,
+            details=f"Deleted student: {student_name} ({student_nim})"
+        )
+        logger.info(f"Admin {admin_user['nim']} deleted student {student_nim}")
+        return {"message": "Student deleted successfully"}
+    
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Failed to delete student"
+    )
 
 
 # =============================================================================

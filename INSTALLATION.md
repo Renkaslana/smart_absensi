@@ -188,6 +188,12 @@ npm run dev
 setup_prototype.bat
 ```
 
+Jika error, install:
+```bash
+# Install dlib via conda-forge (PALING MUDAH!)
+conda install -c conda-forge dlib -y
+pip install face-recognition
+
 **Langkah 2: Jalankan Project**
 ```bash
 # Jalankan Jupyter Notebook

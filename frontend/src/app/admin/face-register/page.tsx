@@ -161,7 +161,14 @@ export default function AdminFaceRegisterPage() {
     setMessage('Memproses wajah...');
 
     try {
-      const imageDataArray = capturedImages.map(img => img.data);
+      // Extract base64 data from data URL (remove "data:image/jpeg;base64," prefix)
+      const imageDataArray = capturedImages.map(img => {
+        // Check if it's a data URL and extract base64 part
+        if (img.data.startsWith('data:')) {
+          return img.data.split(',')[1]; // Extract base64 part after comma
+        }
+        return img.data; // Already base64
+      });
       const response = await faceAPI.adminRegister(selectedStudent.id, imageDataArray);
       
       if (response.data.success) {
@@ -192,7 +199,12 @@ export default function AdminFaceRegisterPage() {
       }
     } catch (error: any) {
       setStatus('error');
-      setMessage(error.response?.data?.detail || 'Terjadi kesalahan saat mendaftarkan wajah');
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Terjadi kesalahan saat mendaftarkan wajah';
+      console.error('Registration error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Images count:', capturedImages.length);
+      console.error('Student ID:', selectedStudent?.id);
+      setMessage(errorMessage);
     }
   };
 

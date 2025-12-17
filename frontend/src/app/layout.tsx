@@ -15,6 +15,11 @@ export const metadata: Metadata = {
   description: 'Sistem absensi modern menggunakan teknologi face recognition untuk kampus dan institusi pendidikan.',
   keywords: ['absensi', 'face recognition', 'attendance', 'kampus', 'mahasiswa'],
   authors: [{ name: 'Smart Absensi Team' }],
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({

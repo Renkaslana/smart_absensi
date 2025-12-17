@@ -132,15 +132,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# For development, allow all origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,  # Must be False when using "*"
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 # =============================================================================
 # SECURITY MIDDLEWARE

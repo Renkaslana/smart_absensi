@@ -1,51 +1,62 @@
 # ⚡ Quick Start Guide
 
-Panduan cepat untuk menjalankan Smart Absensi dalam 5 menit!
+Panduan cepat untuk menjalankan Smart Absensi - **HANYA 1 LANGKAH!**
 
 ---
 
-## 🌐 Versi Web Application (Recommended)
+## 🚀 Instalasi & Jalankan (All-in-One)
 
-### Prerequisites
-- ✅ Python 3.11+
-- ✅ Node.js 18+
-- ✅ Anaconda/Miniconda
+### Prerequisites (Install Sekali Saja)
+- ✅ **Anaconda/Miniconda** - [Download di sini](https://www.anaconda.com/download)
+- ✅ **Node.js 18+** - [Download di sini](https://nodejs.org/)
 
-### Install & Run (Super Simple!)
+### Cara Pakai (Super Mudah!)
 
-**Opsi A: Otomatis (RECOMMENDED) - Hanya 1 Langkah!**
+**1. Clone/Download Project**
 ```bash
-# Jalankan script ini - semua otomatis!
+git clone <repository-url>
+cd smart_absensi
+```
+
+**2. Jalankan Script All-in-One**
+```bash
+# Double-click atau jalankan:
 start_webapp.bat
 ```
 
-Script ini akan otomatis:
-- ✅ Install frontend dependencies (jika belum)
-- ✅ Install backend dependencies (jika belum)
-- ✅ **Membuat admin user** (jika belum ada)
-- ✅ Start backend dan frontend server
+**SELESAI!** 🎉
 
-**Opsi B: Manual Setup (Jika perlu)**
-```bash
-# 1. Setup Backend
-conda create -n smart-absensi python=3.11 -y
-conda activate smart-absensi
-pip install -r requirements.txt
+---
 
-# 2. Setup Frontend
-cd frontend
-npm install
-cd ..
+## 🎯 Apa yang Dilakukan Script Otomatis?
 
-# 3. Jalankan (2 terminal)
-# Terminal 1:
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
+Script `start_webapp.bat` akan **SEMUA** setup untuk Anda:
 
-# Terminal 2:
-cd frontend && npm run dev
-```
+### ✅ Automatic Setup (Pertama Kali - 10-15 menit)
+1. **Deteksi Conda** - Cari instalasi Anaconda/Miniconda
+2. **Buat Environment** - Setup `smart-absensi` dengan Python 3.11
+3. **Install dlib** - Via conda-forge (tanpa CMake!)
+4. **Install face_recognition** - Library untuk pengenalan wajah
+5. **Install Backend** - Semua Python dependencies
+6. **Install Frontend** - Semua npm packages
+7. **Buat Admin User** - Otomatis (NIM: admin, Password: admin123)
 
-> 💡 **Catatan**: Admin user **otomatis dibuat** saat pertama kali run `start_webapp.bat`. Tidak perlu manual create admin!
+### ✅ Start Services (Kedua & Selanjutnya - 10-30 detik)
+- Kill port yang konflik (8001, 3001)
+- Start Backend API (port 8001)
+- Start Frontend Web (port 3001)
+
+---
+
+## 🌐 Akses Aplikasi
+
+Setelah script selesai, buka browser:
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:3001 |
+| **Backend API** | http://localhost:8001 |
+| **API Docs** | http://localhost:8001/docs |
 
 ### 🔐 Login Admin
 | Field | Value |
@@ -53,77 +64,61 @@ cd frontend && npm run dev
 | NIM | `admin` |
 | Password | `admin123` |
 
-### 📱 Cara Pakai
+### 📱 Fitur Utama
 
-1. **Login Admin** → http://localhost:3000/login
-2. **Tambah Mahasiswa** → Admin Dashboard → Students → Tambah
-3. **Registrasi Wajah** → Admin Dashboard → Registrasi Wajah
-   - Pilih mahasiswa
-   - Ambil **3+ foto** dari sudut berbeda
-   - Klik "Daftarkan"
-4. **Absensi** → http://localhost:3000 → "Mulai Absensi"
-5. **Lihat Laporan** → Admin Dashboard → Reports
+**Untuk Mahasiswa:**
+- 📸 **Absensi** - http://localhost:3001/absen
+- 📋 **Riwayat** - http://localhost:3001/riwayat
 
----
-
-## 🔬 Versi Prototype (Jupyter Notebook)
-
-### Install & Run (3 Langkah)
-
-```bash
-# 1. Setup
-conda create -n smart-absensi python=3.11 -y
-conda activate smart-absensi
-conda install -c conda-forge opencv pandas jupyter pillow -y
-pip install numpy==1.26.4 cmake dlib face-recognition
-
-# 2. Jalankan
-jupyter notebook
-# Atau: start_project.bat (Windows)
-
-# 3. Buka preprocessing.ipynb
-```
-
-### 📱 Cara Pakai
-
-1. **Registrasi**: Cell B → Input nama & NIM → Tekan 'c' 3x
-2. **Absensi**: Cell C → Posisikan wajah → Otomatis tercatat
-3. **Lihat Data**: Cell D
+**Untuk Admin:**
+- 👤 **Registrasi Wajah** - http://localhost:3001/admin/face-register
+- 📊 **Dashboard** - http://localhost:3001/admin/dashboard
+- 📑 **Laporan** - http://localhost:3001/admin/reports
+- 👥 **Data Mahasiswa** - http://localhost:3001/admin/students
 
 ---
 
-## 🆘 Masalah Umum
+## 🔄 Cara Menjalankan Ulang
 
-### Port 8000 Blocked?
-```bash
-# Gunakan port 8001
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
-```
+Setiap kali ingin menjalankan aplikasi:
 
-### dlib Error? (Prototype only)
-```bash
-# Windows: Gunakan conda-forge (PALING MUDAH!)
-conda activate smart-absensi
-pip uninstall dlib cmake -y
-conda remove cmake -y 2>nul
-conda install -c conda-forge dlib -y
-pip install face-recognition
-```
+1. **Double-click**: `start_webapp.bat`
+2. **Tunggu** sampai muncul "Smart Absensi berhasil dijalankan!"
+3. **Buka browser**: http://localhost:3001
 
-### NumPy Error?
-```bash
-pip uninstall numpy -y
-pip install numpy==1.26.4
-```
+**Tidak perlu install ulang!** Script akan skip langkah yang sudah selesai.
+
+---
+
+## 🛑 Cara Menghentikan
+
+Tutup kedua window CMD:
+- "Smart Absensi - Backend"  
+- "Smart Absensi - Frontend"
+
+---
+
+## 🆘 Troubleshooting
+
+### Conda Tidak Ditemukan?
+Script akan memberitahu untuk install Anaconda/Miniconda terlebih dahulu:
+- **Anaconda**: https://www.anaconda.com/download
+- **Miniconda**: https://docs.conda.io/en/latest/miniconda.html
+
+### Port Sudah Digunakan?
+✅ Script otomatis kill proses di port 8001 & 3001
+
+### Face Recognition Error?
+✅ Script otomatis install dlib via conda-forge
+
+### Dependencies Tidak Lengkap?
+✅ Script otomatis install semua yang dibutuhkan
 
 ---
 
 ## 📖 Dokumentasi Lengkap
 
-- [INSTALLATION.md](INSTALLATION.md) - Panduan instalasi detail
-- [README.md](README.md) - Dokumentasi lengkap
-- http://localhost:8001/docs - API Documentation
-
----
+- [INSTALLATION.md](INSTALLATION.md) - Panduan instalasi detail & troubleshooting
+- [README.md](README.md) - Dokumentasi lengkap project
 
 **Happy Coding! 🚀**

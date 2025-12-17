@@ -37,8 +37,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 face_recognizer = FaceRecognizer(
     encodings_dir=str(ENCODINGS_DIR),
-    recognition_tolerance=0.6,
-    min_confidence=60.0
+    recognition_tolerance=0.55,
+    min_confidence=50.0
 )
 
 
@@ -125,6 +125,15 @@ async def scan_attendance(
     
     # Decode image
     image = decode_base64_image(data.image)
+    
+    # Enhance image for better detection
+    # Apply brightness and contrast enhancement
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    l = clahe.apply(l)
+    enhanced = cv2.merge([l, a, b])
+    image = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
     
     # Ensure encodings are loaded
     if not face_recognizer._encodings_loaded:

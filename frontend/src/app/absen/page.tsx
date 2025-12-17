@@ -68,10 +68,10 @@ export default function AbsenPage() {
     attendance_rate: number;
   } | null>(null);
 
-  // Video constraints
+  // Video constraints - increased resolution for better detection
   const videoConstraints = {
-    width: 640,
-    height: 480,
+    width: 1280,
+    height: 720,
     facingMode: 'user',
   };
 
@@ -162,18 +162,18 @@ export default function AbsenPage() {
     loadStats();
   }, []);
 
-  // Auto-scan interval (every 2 seconds when idle and auto-scan enabled)
+  // Auto-scan interval (every 1 second when idle and auto-scan enabled)
   useEffect(() => {
     if (!autoScanEnabled || status !== 'idle' || isCapturing || !webcamReady) return;
 
     const interval = setInterval(() => {
       const now = Date.now();
-      // Debounce: only scan if last scan was more than 5 seconds ago
+      // Debounce: only scan if last scan was more than 2 seconds ago
       // Also check if webcam is ready
-      if (now - lastScanTime > 5000 && webcamRef.current && webcamReady) {
+      if (now - lastScanTime > 2000 && webcamRef.current && webcamReady) {
         handleScan();
       }
-    }, 2000); // Check every 2 seconds
+    }, 1000); // Check every 1 second
 
     return () => clearInterval(interval);
   }, [autoScanEnabled, status, isCapturing, lastScanTime, handleScan, webcamReady]);

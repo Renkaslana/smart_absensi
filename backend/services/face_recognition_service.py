@@ -34,8 +34,8 @@ class FaceRecognizer:
         self,
         encodings_dir: str = "encodings",
         use_face_recognition_lib: bool = True,
-        recognition_tolerance: float = 0.6,
-        min_confidence: float = 60.0,
+        recognition_tolerance: float = 0.55,
+        min_confidence: float = 50.0,
         encoding_method: str = "face_recognition"
     ):
         """
@@ -302,14 +302,16 @@ class FaceRecognizer:
     def process_frame(
         self,
         frame: np.ndarray,
-        resize_factor: float = 0.25
+        resize_factor: float = 0.5,
+        detection_model: str = "hog"
     ) -> List[Dict[str, Any]]:
         """
         Process a video frame and return detected/recognized faces.
         
         Args:
             frame: Input video frame (BGR)
-            resize_factor: Factor to resize frame for performance
+            resize_factor: Factor to resize frame for performance (0.5 default for better accuracy)
+            detection_model: Detection model ("hog" for speed or "cnn" for accuracy)
             
         Returns:
             List of detected faces with recognition results
@@ -326,8 +328,8 @@ class FaceRecognizer:
         if not rgb_small.flags['C_CONTIGUOUS']:
             rgb_small = np.ascontiguousarray(rgb_small)
         
-        # Detect faces
-        face_locations = face_recognition.face_locations(rgb_small, model="hog")
+        # Detect faces - use hog for speed, try multiple times if needed
+        face_locations = face_recognition.face_locations(rgb_small, model=detection_model, number_of_times_to_upsample=1)
         
         if not face_locations:
             return results

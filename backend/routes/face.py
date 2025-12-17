@@ -44,8 +44,8 @@ DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
 face_recognizer = FaceRecognizer(
     encodings_dir=str(ENCODINGS_DIR),
-    recognition_tolerance=0.6,
-    min_confidence=60.0
+    recognition_tolerance=0.55,
+    min_confidence=50.0
 )
 
 preprocessor = create_preprocessor("standard")
@@ -380,10 +380,17 @@ async def admin_register_face(
     The student doesn't need to login - admin handles registration.
     Requires minimum 3 photos for accurate face recognition.
     """
-    if len(data.images) < 3:
+    # Validate request
+    if not data.images or len(data.images) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Minimal 3 foto wajah diperlukan untuk registrasi yang akurat"
+            detail=f"Minimal 3 foto wajah diperlukan untuk registrasi yang akurat. Diterima: {len(data.images) if data.images else 0} foto"
+        )
+    
+    if not data.student_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="student_id tidak boleh kosong"
         )
     
     # Get student from database
@@ -391,13 +398,13 @@ async def admin_register_face(
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Mahasiswa tidak ditemukan"
+            detail=f"Mahasiswa dengan ID {data.student_id} tidak ditemukan"
         )
     
     if student.get("role") != "mahasiswa":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Hanya bisa mendaftarkan wajah untuk mahasiswa"
+            detail=f"Hanya bisa mendaftarkan wajah untuk mahasiswa. User ini memiliki role: {student.get('role', 'unknown')}"
         )
     
     # Decode images

@@ -34,7 +34,7 @@ api.interceptors.response.use(
       const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
       if (refreshToken) {
         try {
-          const response = await axios.post(`${API_URL}/auth/refresh`, {
+          const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
             refresh_token: refreshToken,
           });
           const { access_token, refresh_token: new_refresh_token } = response.data;
@@ -78,27 +78,27 @@ api.interceptors.response.use(
 
 export const authApi = {
   login: async (credentials: { nim: string; password: string }) => {
-    return api.post('/auth/login', credentials);
+    return api.post('/api/v1/auth/login', credentials);
   },
 
   register: async (data: { nim: string; name: string; password: string; email?: string }) => {
-    return api.post('/auth/register', data);
+    return api.post('/api/v1/auth/register', data);
   },
 
   logout: async () => {
-    return api.post('/auth/logout');
+    return api.post('/api/v1/auth/logout');
   },
 
   getMe: async () => {
-    return api.get('/auth/me');
+    return api.get('/api/v1/auth/me');
   },
 
   changePassword: async (data: { current_password: string; new_password: string }) => {
-    return api.put('/auth/change-password', data);
+    return api.put('/api/v1/auth/change-password', data);
   },
 
   refreshToken: async (refresh_token: string) => {
-    return api.post('/auth/refresh', { refresh_token });
+    return api.post('/api/v1/auth/refresh', { refresh_token });
   },
 };
 
@@ -108,14 +108,14 @@ export const authApi = {
 
 export const faceAPI = {
   scan: async (base64Image: string) => {
-    return api.post('/face/scan', {
-      image: base64Image,
+    return api.post('/api/v1/face/scan', {
+      image_base64: base64Image,
     });
   },
 
   register: async (images: string[]) => {
-    return api.post('/face/register', {
-      images,
+    return api.post('/api/v1/face/register', {
+      images_base64: images,
     });
   },
 
@@ -124,7 +124,7 @@ export const faceAPI = {
     files.forEach((file) => {
       formData.append('files', file);
     });
-    return api.post('/face/register-upload', formData, {
+    return api.post('/api/v1/face/register-upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -132,9 +132,8 @@ export const faceAPI = {
   },
 
   adminRegister: async (studentId: number, images: string[]) => {
-    return api.post('/face/admin/register', {
-      student_id: studentId,
-      images,
+    return api.post(`/api/v1/face/admin/register/${studentId}`, {
+      images_base64: images,
     });
   },
 
@@ -144,7 +143,7 @@ export const faceAPI = {
     files.forEach((file) => {
       formData.append('files', file);
     });
-    return api.post('/face/admin/register-upload', formData, {
+    return api.post(`/api/v1/face/admin/register-upload/${studentId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -152,25 +151,25 @@ export const faceAPI = {
   },
 
   verify: async (base64Image: string) => {
-    return api.post('/face/verify', {
-      image: base64Image,
+    return api.post('/api/v1/face/verify', {
+      image_base64: base64Image,
     });
   },
 
   unregister: async () => {
-    return api.delete('/face/unregister');
+    return api.delete('/api/v1/face/unregister');
   },
 
   adminUnregister: async (studentId: number) => {
-    return api.delete(`/face/admin/unregister/${studentId}`);
+    return api.delete(`/api/v1/face/admin/unregister/${studentId}`);
   },
 
   getStatus: async () => {
-    return api.get('/face/status');
+    return api.get('/api/v1/face/status');
   },
 
   getRegisteredUsers: async () => {
-    return api.get('/face/registered-users');
+    return api.get('/api/v1/face/registered-users');
   },
 };
 
@@ -179,41 +178,41 @@ export const faceAPI = {
 // =============================================================================
 
 export const absensiAPI = {
-  submit: async (data: { image: string; device_info?: string }) => {
-    return api.post('/absensi/submit', data);
+  submit: async (data: { image_base64: string }) => {
+    return api.post('/api/v1/absensi/submit', data);
   },
 
-  getHistory: async (params?: { limit?: number; offset?: number; start_date?: string; end_date?: string }) => {
-    return api.get('/absensi/history', { params });
+  getHistory: async (params?: { skip?: number; limit?: number; start_date?: string; end_date?: string }) => {
+    return api.get('/api/v1/absensi/history', { params });
   },
 
   getToday: async () => {
-    return api.get('/absensi/today');
+    return api.get('/api/v1/absensi/today');
   },
 
   getStats: async () => {
-    return api.get('/absensi/statistics');
+    return api.get('/api/v1/absensi/statistics');
   },
 
   checkStatus: async () => {
-    return api.get('/absensi/check-status');
+    return api.get('/api/v1/absensi/today');
   },
 
   // Admin endpoints
-  getAll: async (params?: { limit?: number; offset?: number; start_date?: string; end_date?: string; nim?: string }) => {
-    return api.get('/absensi/admin/all', { params });
+  getAll: async (params?: { skip?: number; limit?: number; start_date?: string; end_date?: string; kelas?: string }) => {
+    return api.get('/api/v1/admin/students', { params });
   },
 
   getAdminStats: async (params?: { start_date?: string; end_date?: string }) => {
-    return api.get('/absensi/admin/statistics', { params });
+    return api.get('/api/v1/admin/statistics/date', { params });
   },
 
-  export: async (params?: { start_date?: string; end_date?: string; format?: 'csv' | 'excel' }) => {
-    return api.get('/absensi/admin/export', { params, responseType: 'blob' });
+  export: async (params?: { start_date?: string; end_date?: string; format?: 'csv' | 'json' }) => {
+    return api.get('/api/v1/admin/report', { params, responseType: params?.format === 'csv' ? 'blob' : 'json' });
   },
 
   getDailyReport: async (date: string) => {
-    return api.get('/absensi/admin/daily-report', { params: { date } });
+    return api.get('/api/v1/admin/statistics/date', { params: { target_date: date } });
   },
 };
 
@@ -223,71 +222,71 @@ export const absensiAPI = {
 
 export const adminAPI = {
   getDashboard: async () => {
-    return api.get('/admin/dashboard');
+    return api.get('/api/v1/admin/dashboard');
   },
 
   getStatistics: async (params?: { start_date?: string; end_date?: string }) => {
-    return api.get('/admin/statistics', { params });
+    return api.get('/api/v1/admin/statistics/date', { params });
   },
 
-  getStudents: async (params?: { limit?: number; offset?: number; search?: string }) => {
-    return api.get('/admin/students', { params });
+  getStudents: async (params?: { skip?: number; limit?: number; kelas?: string; has_face?: boolean }) => {
+    return api.get('/api/v1/admin/students', { params });
   },
 
   getStudentsWithoutFace: async () => {
-    return api.get('/admin/students/without-face');
+    return api.get('/api/v1/admin/students', { params: { has_face: false } });
   },
 
   getStudentsWithFace: async () => {
-    return api.get('/admin/students/with-face');
+    return api.get('/api/v1/admin/students', { params: { has_face: true } });
   },
 
-  createStudent: async (data: { nim: string; name: string; email?: string; kelas?: string }) => {
-    return api.post('/admin/students', data);
+  createStudent: async (data: { nim: string; name: string; password: string; email?: string; kelas?: string }) => {
+    return api.post('/api/v1/admin/students', data);
   },
 
-  bulkCreateStudents: async (students: Array<{ nim: string; name: string; email?: string; kelas?: string }>) => {
-    return api.post('/admin/students/bulk', { students });
+  bulkCreateStudents: async (students: Array<{ nim: string; name: string; password: string; email?: string; kelas?: string }>) => {
+    return api.post('/api/v1/admin/students/bulk', students);
   },
 
   getStudentsDropdown: async () => {
-    return api.get('/admin/students/dropdown');
+    return api.get('/api/v1/admin/students', { params: { limit: 1000 } });
   },
 
   deleteStudent: async (studentId: number) => {
-    return api.delete(`/admin/students/${studentId}`);
+    return api.delete(`/api/v1/admin/students/${studentId}`);
   },
 
-  getUsers: async (params?: { limit?: number; offset?: number; role?: string; search?: string }) => {
-    return api.get('/admin/users', { params });
+  getUsers: async (params?: { skip?: number; limit?: number; kelas?: string }) => {
+    return api.get('/api/v1/admin/students', { params });
   },
 
-  createUser: async (data: { nim: string; name: string; password: string; email?: string; role?: string }) => {
-    return api.post('/admin/users', data);
+  createUser: async (data: { nim: string; name: string; password: string; email?: string; kelas?: string }) => {
+    return api.post('/api/v1/admin/students', data);
   },
 
   getUser: async (userId: number) => {
-    return api.get(`/admin/users/${userId}`);
+    return api.get(`/api/v1/admin/students`, { params: { skip: 0, limit: 1000 } });
   },
 
-  updateUser: async (userId: number, data: { name?: string; email?: string; role?: string; password?: string }) => {
-    return api.put(`/admin/users/${userId}`, data);
+  updateUser: async (userId: number, data: { name?: string; email?: string; kelas?: string; password?: string; is_active?: boolean }) => {
+    return api.put(`/api/v1/admin/students/${userId}`, data);
   },
 
   deleteUser: async (userId: number) => {
-    return api.delete(`/admin/users/${userId}`);
+    return api.delete(`/api/v1/admin/students/${userId}`);
   },
 
-  getReport: async (params?: { start_date?: string; end_date?: string; format?: 'json' | 'csv' | 'excel' }) => {
-    return api.get('/admin/report', { params });
+  getReport: async (params?: { start_date?: string; end_date?: string; kelas?: string; format?: 'json' | 'csv' }) => {
+    return api.get('/api/v1/admin/report', { params, responseType: params?.format === 'csv' ? 'blob' : 'json' });
   },
 
   makeAdmin: async (userId: number) => {
-    return api.post(`/admin/make-admin/${userId}`);
+    return api.put(`/api/v1/admin/students/${userId}`, { role: 'admin' });
   },
 
   revokeAdmin: async (userId: number) => {
-    return api.post(`/admin/revoke-admin/${userId}`);
+    return api.put(`/api/v1/admin/students/${userId}`, { role: 'user' });
   },
 };
 
@@ -296,27 +295,28 @@ export const adminAPI = {
 // =============================================================================
 
 export const publicApi = {
-  scanAttendance: async (base64Image: string, deviceInfo?: string) => {
-    return api.post('/public/scan-attendance', {
-      image: base64Image,
-      device_info: deviceInfo,
+  scanAttendance: async (base64Image: string) => {
+    return api.post('/api/v1/face/scan', {
+      image_base64: base64Image,
     });
   },
 
   getHistory: async (nim: string) => {
-    return api.get(`/public/history/${nim}`);
+    // This endpoint doesn't exist in backend, using today stats instead
+    return api.get('/api/v1/public/today-stats');
   },
 
   checkStatus: async (nim: string) => {
-    return api.get(`/public/check-status/${nim}`);
+    // This endpoint doesn't exist in backend, using today stats instead
+    return api.get('/api/v1/public/today-stats');
   },
 
   getTodayStats: async () => {
-    return api.get('/public/today-stats');
+    return api.get('/api/v1/public/today-stats');
   },
 
-  getLatestAttendance: async () => {
-    return api.get('/public/latest-attendance');
+  getLatestAttendance: async (limit: number = 10) => {
+    return api.get('/api/v1/public/latest-attendance', { params: { limit } });
   },
 };
 

@@ -30,6 +30,41 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables ready")
     
+    # Sync has_face status from existing face folders
+    from app.db.session import SessionLocal
+    from app.models.user import User
+    import os
+    
+    db = SessionLocal()
+    try:
+        face_storage_path = settings.FACE_STORAGE_PATH
+        if os.path.exists(face_storage_path):
+            # Get all user folders (NIM folders)
+            user_folders = [f for f in os.listdir(face_storage_path) 
+                          if os.path.isdir(os.path.join(face_storage_path, f))]
+            
+            # Update has_face for users with existing folders
+            for nim_folder in user_folders:
+                folder_path = os.path.join(face_storage_path, nim_folder)
+                # Check if folder has at least 3 images
+                images = [f for f in os.listdir(folder_path) 
+                         if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                
+                if len(images) >= 3:
+                    # Update user has_face = True
+                    user = db.query(User).filter(User.nim == nim_folder).first()
+                    if user and not user.has_face:
+                        user.has_face = True
+                        print(f"  ✓ Synced has_face for {nim_folder} ({len(images)} images)")
+            
+            db.commit()
+            print(f"✅ Face registration status synced from {len(user_folders)} folders")
+    except Exception as e:
+        print(f"⚠️ Error syncing face status: {e}")
+        db.rollback()
+    finally:
+        db.close()
+    
     yield
     
     # Shutdown

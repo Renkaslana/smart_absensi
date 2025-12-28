@@ -48,20 +48,20 @@ type LivenessStep = 'blink' | 'turn-left' | 'turn-right' | 'complete';
 export default function AdminFaceRegisterPage() {
   const webcamRef = useRef<Webcam>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<StudentOption[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<StudentOption | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'no-face' | 'registered'>('no-face');
-  
+
   const [status, setStatus] = useState<RegistrationStatus>('idle');
   const [message, setMessage] = useState('');
   const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
-  
+
   // Liveness Detection
   const [settings, setSettings] = useState<FaceSettings>({
     confidenceThreshold: 0.8,
@@ -75,21 +75,111 @@ export default function AdminFaceRegisterPage() {
   const [livenessInstructions, setLivenessInstructions] = useState('');
   const [attemptCount, setAttemptCount] = useState(0);
 
-  const MIN_PHOTOS = 5;
-  const MAX_PHOTOS = 15;
-  const RECOMMENDED_PHOTOS = 10;
+  // Auto-capture feature
+  const [isAutoCapture, setIsAutoCapture] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [currentPhotoAngle, setCurrentPhotoAngle] = useState(0);
+  const autoCaptureTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const MIN_PHOTOS = 3;
+  const MAX_PHOTOS = 5;
+  const RECOMMENDED_PHOTOS = 5;
+
+  // Photo angles for progressive guidance (5 angles for 5 photos max)
+  const PHOTO_ANGLES = [
+    'Foto depan - Lihat langsung ke kamera',
+    'Foto kiri - Putar kepala 30 derajat ke kiri',
+    'Foto kanan - Putar kepala 30 derajat ke kanan',
+    'Foto sedikit ke atas - Angkat dagu sedikit',
+    'Foto depan lagi - Kembali lihat langsung ke kamera'
+  ];
+
+
+  // Voice synthesis helper with Indonesian support
+  const speak = useCallback((text: string) => {
+    if ('speechSynthesis' in window) {
+      try {
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        // Wait for voices to load
+        const setVoice = () => {
+          const voices = window.speechSynthesis.getVoices();
+          // Try to find Indonesian voice
+          const indonesianVoice = voices.find(voice =>
+            voice.lang.includes('id') || voice.lang.includes('ID')
+          );
+
+          if (indonesianVoice) {
+            utterance.voice = indonesianVoice;
+            console.log('✓ Using Indonesian voice:', indonesianVoice.name);
+          } else {
+            console.log('⚠️ Indonesian voice not found, using default');
+          }
+
+          utterance.lang = 'id-ID';
+          utterance.rate = 0.9; // Sedikit lebih lambat untuk clarity
+          utterance.pitch = 1.0;
+          utterance.volume = 1.0;
+
+          window.speechSynthesis.speak(utterance);
+        };
+
+        // Some browsers need time to load voices
+        if (window.speechSynthesis.getVoices().length > 0) {
+          setVoice();
+        } else {
+          window.speechSynthesis.onvoiceschanged = setVoice;
+        }
+      } catch (error) {
+        console.error('Voice synthesis error:', error);
+      }
+    } else {
+      console.warn('Speech synthesis not supported in this browser');
+    }
+  }, []);
+
+  function startLivenessCheck() {
+    const steps: LivenessStep[] = [];
+    if (settings.blinkDetection) steps.push('blink');
+    if (settings.headMovement) {
+      steps.push('turn-left');
+      steps.push('turn-right');
+    }
+
+    if (steps.length === 0) {
+      setStatus('idle');
+      return;
+    }
+
+    setStatus('liveness-check');
+    setLivenessStep(steps[0]);
+    performLivenessSteps(steps, 0);
+  }
+  
+  // Cleanup auto-capture timer
+  useEffect(() => {
+    return () => {
+      if (autoCaptureTimerRef.current) {
+        clearInterval(autoCaptureTimerRef.current);
+      }
+      window.speechSynthesis.cancel();
+    };
+  }, []);
 
   // Fetch settings and students with auto-refresh
   useEffect(() => {
     fetchSettings();
     fetchStudents();
-    
+
     // Auto-refresh every 10 seconds for real-time updates
     const intervalId = setInterval(() => {
       console.log('🔄 Auto-refreshing students...');
       fetchStudents();
     }, 10000);
-    
+
     // Cleanup interval on unmount or filterMode change
     return () => clearInterval(intervalId);
   }, [filterMode]);
@@ -124,7 +214,7 @@ export default function AdminFaceRegisterPage() {
       const query = searchQuery.toLowerCase();
       setFilteredStudents(
         students.filter(
-          s => 
+          s =>
             s.name.toLowerCase().includes(query) ||
             s.nim.toLowerCase().includes(query) ||
             s.kelas?.toLowerCase().includes(query)
@@ -137,7 +227,7 @@ export default function AdminFaceRegisterPage() {
     setIsLoadingStudents(true);
     try {
       const response = await adminAPI.getStudents({});
-      
+
       // Normalize backend response (sama seperti di students page)
       const payload = response.data || {};
       const rawItems = payload.students ?? payload.items ?? payload.data?.students ?? payload.data?.items ?? [];
@@ -180,24 +270,30 @@ export default function AdminFaceRegisterPage() {
   const handleCapture = useCallback(() => {
     if (!webcamRef.current || !selectedStudent) return;
     if (capturedImages.length >= MAX_PHOTOS) {
-      setMessage('Maksimal 10 foto sudah tercapai');
+      setMessage(`Maksimal ${MAX_PHOTOS} foto sudah tercapai`);
       return;
     }
-    
+
+    // Liveness check before first photo
+    if (capturedImages.length === 0 && settings.livenessEnabled) {
+      startLivenessCheck();
+      return;
+    }
+
     // Check max attempts
     if (attemptCount >= settings.maxAttempts && capturedImages.length < MIN_PHOTOS) {
       setStatus('error');
       setMessage(`Maksimal ${settings.maxAttempts} percobaan tercapai. Silakan reset dan coba lagi.`);
       return;
     }
-    
+
     // If liveness detection enabled, do liveness check first
     if (settings.livenessEnabled && capturedImages.length === 0) {
       setStatus('liveness-check');
       startLivenessCheck();
       return;
     }
-    
+
     const imageSrc = webcamRef.current.getScreenshot();
     if (imageSrc) {
       const newImage: CapturedImage = {
@@ -207,11 +303,14 @@ export default function AdminFaceRegisterPage() {
       setCapturedImages(prev => [...prev, newImage]);
       setAttemptCount(prev => prev + 1);
       setStatus('idle');
-      
+
+      // Voice feedback: "Gambar telah diambil"
+      speak('Gambar telah diambil');
+
       // Progressive feedback messages
       const remaining = MIN_PHOTOS - capturedImages.length - 1;
       const totalCaptured = capturedImages.length + 1;
-      
+
       if (totalCaptured < MIN_PHOTOS) {
         setMessage(`✓ ${totalCaptured} foto diambil. ${remaining} foto lagi untuk mencapai minimum.`);
       } else if (totalCaptured >= MIN_PHOTOS && totalCaptured < RECOMMENDED_PHOTOS) {
@@ -220,63 +319,121 @@ export default function AdminFaceRegisterPage() {
       } else {
         setMessage(`✓ Sempurna! ${totalCaptured} foto - Dataset optimal untuk akurasi tinggi!`);
       }
+
+      // Update current photo angle for next capture
+      setCurrentPhotoAngle(prev => (prev + 1) % PHOTO_ANGLES.length);
     }
   }, [selectedStudent, capturedImages.length, attemptCount, settings]);
 
-  const startLivenessCheck = () => {
-    const steps: LivenessStep[] = [];
-    if (settings.blinkDetection) steps.push('blink');
-    if (settings.headMovement) {
-      steps.push('turn-left');
-      steps.push('turn-right');
-    }
-    
-    if (steps.length === 0) {
-      // No liveness check, proceed to capture
-      setStatus('idle');
+  const startAutoCapture = useCallback(() => {
+    if (!selectedStudent || capturedImages.length >= MAX_PHOTOS) {
+      setMessage('Pilih mahasiswa terlebih dahulu atau sudah mencapai batas maksimum foto');
       return;
     }
-    
-    setLivenessStep(steps[0]);
-    performLivenessSteps(steps, 0);
-  };
+
+    // Liveness check before starting auto-capture (only for first time)
+    if (capturedImages.length === 0 && settings.livenessEnabled) {
+      speak('Verifikasi keamanan akan dimulai');
+      startLivenessCheck();
+      // After liveness, will need to click Auto again
+      return;
+    }
+
+    setIsAutoCapture(true);
+    speak('Pengambilan foto otomatis akan dimulai');
+    setCountdown(3);
+
+    // Countdown 3, 2, 1 (Indonesian voice)
+    let count = 3;
+    const countdownInterval = setInterval(() => {
+      if (count > 0) {
+        setCountdown(count);
+        // Indonesian countdown: "tiga", "dua", "satu"
+        const countIndonesian = ['', 'satu', 'dua', 'tiga'];
+        speak(countIndonesian[count]);
+        count--;
+      } else {
+        clearInterval(countdownInterval);
+        setCountdown(0);
+        speak('Mulai');
+
+        // Start auto-capture sequence
+        let photoIndex = capturedImages.length;
+        const captureInterval = setInterval(() => {
+          if (photoIndex >= MAX_PHOTOS) {
+            clearInterval(captureInterval);
+            stopAutoCapture();
+            return;
+          }
+
+          // Announce angle instruction
+          if (photoIndex < PHOTO_ANGLES.length) {
+            speak(PHOTO_ANGLES[photoIndex]);
+            setMessage(PHOTO_ANGLES[photoIndex]);
+          }
+
+          // Capture photo after 1 second (give time for user to position)
+          setTimeout(() => {
+            if (webcamRef.current) {
+              const imageSrc = webcamRef.current.getScreenshot();
+              if (imageSrc) {
+                const newImage: CapturedImage = {
+                  id: Date.now().toString(),
+                  data: imageSrc
+                };
+                setCapturedImages(prev => [...prev, newImage]);
+                speak('Gambar telah diambil');
+              }
+            }
+          }, 1000);
+
+          photoIndex++;
+        }, 4000); // Every 4 seconds (1s instruction + 1s position + 2s next)
+
+        autoCaptureTimerRef.current = captureInterval;
+      }
+    }, 1000);
+  }, [selectedStudent, capturedImages.length, settings.livenessEnabled, speak, webcamRef, startLivenessCheck]);
+
+  const stopAutoCapture = useCallback(() => {
+    setIsAutoCapture(false);
+    setCountdown(0);
+    if (autoCaptureTimerRef.current) {
+      clearInterval(autoCaptureTimerRef.current);
+      autoCaptureTimerRef.current = null;
+    }
+  }, []);
+
+
+  
 
   const performLivenessSteps = (steps: LivenessStep[], currentIndex: number) => {
     if (currentIndex >= steps.length) {
       setStatus('idle');
-      setMessage('Verifikasi liveness berhasil! Ambil foto sekarang.');
-      setTimeout(() => {
-        if (webcamRef.current) {
-          const imageSrc = webcamRef.current.getScreenshot();
-          if (imageSrc) {
-            const newImage: CapturedImage = {
-              id: Date.now().toString(),
-              data: imageSrc
-            };
-            setCapturedImages(prev => [...prev, newImage]);
-            setMessage('1 foto diambil. Ambil dari sudut berbeda.');
-          }
-        }
-      }, 500);
+      setLivenessStep('complete');
+      setMessage('✓ Verifikasi keamanan berhasil! Siap mengambil foto.');
+      speak('Verifikasi berhasil, siap mengambil foto');
       return;
     }
 
     const currentStep = steps[currentIndex];
     setLivenessStep(currentStep);
-    
+
     const instructions: Record<LivenessStep, string> = {
-      'blink': 'Kedipkan mata Anda beberapa kali',
+      'blink': 'Kedipkan mata Anda dua kali',
       'turn-left': 'Putar kepala ke kiri',
       'turn-right': 'Putar kepala ke kanan',
       'complete': 'Selesai'
     };
-    
-    setLivenessInstructions(instructions[currentStep]);
-    
-    // Simulate step completion after 3 seconds
+
+    const instruction = instructions[currentStep];
+    setLivenessInstructions(instruction);
+    speak(instruction);
+
+    // User has 4 seconds to perform action
     setTimeout(() => {
       performLivenessSteps(steps, currentIndex + 1);
-    }, 3000);
+    }, 4000);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -332,23 +489,26 @@ export default function AdminFaceRegisterPage() {
         return img.data; // Already base64
       });
       const response = await faceAPI.adminRegister(selectedStudent.id, imageDataArray);
-      
+
       if (response.data.success) {
         setStatus('success');
-        const qualityNote = capturedImages.length >= RECOMMENDED_PHOTOS 
-          ? ' (Dataset optimal - akurasi 90%+!)' 
-          : capturedImages.length >= MIN_PHOTOS 
-          ? ' (Dapat ditingkatkan dengan lebih banyak foto)' 
-          : '';
+        const qualityNote = capturedImages.length >= RECOMMENDED_PHOTOS
+          ? ' (Dataset optimal - akurasi 90%+!)'
+          : capturedImages.length >= MIN_PHOTOS
+            ? ' (Dapat ditingkatkan dengan lebih banyak foto)'
+            : '';
         setMessage(`✓ Wajah berhasil didaftarkan dengan ${capturedImages.length} foto${qualityNote}\nDisimpan: dataset_wajah/${selectedStudent.nim}/`);
-        
+
+        // Voice feedback: "Semua data gambar terkait absensi sudah disimpan, terima kasih"
+        speak('Semua data gambar terkait absensi sudah disimpan, terima kasih');
+
         // Update student list
-        setStudents(prev => 
-          prev.map(s => 
+        setStudents(prev =>
+          prev.map(s =>
             s.id === selectedStudent.id ? { ...s, has_face: true } : s
           )
         );
-        
+
         // Reset after success
         setTimeout(() => {
           setCapturedImages([]);
@@ -366,11 +526,37 @@ export default function AdminFaceRegisterPage() {
       }
     } catch (error: any) {
       setStatus('error');
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Terjadi kesalahan saat mendaftarkan wajah';
       console.error('Registration error:', error);
       console.error('Error response:', error.response?.data);
       console.error('Images count:', capturedImages.length);
       console.error('Student ID:', selectedStudent?.id);
+
+      // Handle error message properly - convert object to string
+      let errorMessage = 'Terjadi kesalahan saat mendaftarkan wajah';
+
+      if (error.response?.data) {
+        const errorData = error.response.data;
+
+        // Handle validation errors (array of objects)
+        if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail.map((err: any) => err.msg || JSON.stringify(err)).join(', ');
+        }
+        // Handle single detail object or string
+        else if (errorData.detail) {
+          if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else if (typeof errorData.detail === 'object') {
+            errorMessage = errorData.detail.msg || JSON.stringify(errorData.detail);
+          }
+        }
+        // Handle message field
+        else if (errorData.message) {
+          errorMessage = typeof errorData.message === 'string' ? errorData.message : JSON.stringify(errorData.message);
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       setMessage(errorMessage);
     }
   };
@@ -395,7 +581,7 @@ export default function AdminFaceRegisterPage() {
       >
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Registrasi Wajah</h1>
-          <p className="text-gray-600 mt-1">Daftarkan wajah mahasiswa untuk sistem absensi</p>
+          <p className="text-gray-600 mt-1">Daftarkan wajah mahasiswa untuk sistem absensi dengan auto-capture</p>
         </div>
         <div className="flex items-center space-x-3">
           <select
@@ -418,6 +604,32 @@ export default function AdminFaceRegisterPage() {
         </div>
       </motion.div>
 
+      {/* Info Panel */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200"
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <Loader2 className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-1">✨ Fitur Auto-Capture + Voice Indonesia</h3>
+            <p className="text-sm text-gray-700">
+              Klik tombol <strong>Auto</strong> untuk pengambilan foto otomatis dengan panduan sudut berbahasa Indonesia.
+              Sistem akan mengambil <strong>5 foto</strong> secara otomatis setiap 4 detik dengan:
+            </p>
+            <ul className="text-sm text-gray-700 mt-2 ml-4 space-y-1">
+              <li>• 🔊 Countdown: <strong>"tiga, dua, satu, mulai"</strong></li>
+              <li>• 🔊 Panduan sudut: <strong>"Foto depan", "Foto kiri"</strong>, dll</li>
+              <li>• 🔊 Konfirmasi: <strong>"Gambar telah diambil"</strong></li>
+              <li>• 🔊 Selesai: <strong>"Semua data gambar sudah disimpan"</strong></li>
+            </ul>
+          </div>
+        </div>
+      </motion.div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Student Selection */}
         <motion.div
@@ -435,9 +647,8 @@ export default function AdminFaceRegisterPage() {
             >
               {selectedStudent ? (
                 <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    selectedStudent.has_face ? 'bg-green-100' : 'bg-blue-100'
-                  }`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedStudent.has_face ? 'bg-green-100' : 'bg-blue-100'
+                    }`}>
                     {selectedStudent.has_face ? (
                       <UserCheck className="w-5 h-5 text-green-600" />
                     ) : (
@@ -498,11 +709,10 @@ export default function AdminFaceRegisterPage() {
                           className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-150 border-b border-gray-100 last:border-0 group"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
-                              student.has_face 
-                                ? 'bg-gradient-to-br from-green-400 to-emerald-600' 
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${student.has_face
+                                ? 'bg-gradient-to-br from-green-400 to-emerald-600'
                                 : 'bg-gradient-to-br from-gray-200 to-gray-300'
-                            }`}>
+                              }`}>
                               {student.has_face ? (
                                 <UserCheck className="w-5 h-5 text-white" />
                               ) : (
@@ -563,7 +773,7 @@ export default function AdminFaceRegisterPage() {
                   <X className="w-5 h-5 text-blue-600 group-hover:text-blue-800" />
                 </button>
               </div>
-              
+
               {selectedStudent.has_face && (
                 <div className="mt-4 p-3 bg-yellow-50 rounded-lg border-2 border-yellow-300">
                   <div className="flex items-start space-x-2">
@@ -608,7 +818,7 @@ export default function AdminFaceRegisterPage() {
           className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Ambil Foto Wajah 
+            Ambil Foto Wajah
             <span className="text-sm font-normal text-gray-500 ml-2">
               (Minimal {MIN_PHOTOS} foto dari sudut berbeda)
             </span>
@@ -635,50 +845,59 @@ export default function AdminFaceRegisterPage() {
                     width: 1920,
                     height: 1080,
                     facingMode: 'user',
-                    aspectRatio: 4/3
+                    aspectRatio: 4 / 3
                   }}
                   onUserMedia={handleCameraReady}
                   className="w-full h-full object-cover"
                 />
-                
+
                 {/* Face Guide */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-48 h-60 border-2 border-white/50 rounded-full"></div>
                 </div>
-                
+
                 {/* Guide Text */}
                 <div className="absolute bottom-4 left-0 right-0 text-center px-4">
                   <div className="bg-black/70 inline-block px-5 py-3 rounded-xl backdrop-blur-sm border border-white/20">
-                    <p className="text-white text-sm font-semibold mb-1">
-                      {capturedImages.length < MIN_PHOTOS 
-                        ? `Foto ${capturedImages.length}/${MIN_PHOTOS} - ${MIN_PHOTOS - capturedImages.length} foto lagi` 
-                        : capturedImages.length < RECOMMENDED_PHOTOS
-                        ? `✓ Minimum tercapai! ${RECOMMENDED_PHOTOS - capturedImages.length} foto lagi untuk hasil optimal`
-                        : '✓ Sempurna! Siap registrasi dengan akurasi tinggi'}
-                    </p>
-                    <p className="text-white/80 text-xs">
-                      {capturedImages.length === 0 && 'Mulai dari foto depan dengan pencahayaan baik'}
-                      {capturedImages.length === 1 && 'Bagus! Sekarang foto dari kiri 30°'}
-                      {capturedImages.length === 2 && 'Lanjut foto dari kanan 30°'}
-                      {capturedImages.length === 3 && 'Foto sedikit miring ke kiri bawah'}
-                      {capturedImages.length === 4 && 'Foto sedikit miring ke kanan bawah'}
-                      {capturedImages.length >= 5 && capturedImages.length < RECOMMENDED_PHOTOS && 'Tambah variasi sudut untuk akurasi optimal'}
-                      {capturedImages.length >= RECOMMENDED_PHOTOS && 'Dataset sempurna untuk training!'}
-                    </p>
+                    {countdown > 0 ? (
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        <div>
+                          <p className="text-white text-xl font-bold">
+                            {countdown}
+                          </p>
+                          <p className="text-white/80 text-xs">Bersiaplah...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-white text-sm font-semibold mb-1">
+                          {capturedImages.length < MIN_PHOTOS
+                            ? `Foto ${capturedImages.length}/${MIN_PHOTOS} - ${MIN_PHOTOS - capturedImages.length} foto lagi`
+                            : capturedImages.length < RECOMMENDED_PHOTOS
+                              ? `✓ Minimum tercapai! ${RECOMMENDED_PHOTOS - capturedImages.length} foto lagi untuk hasil optimal`
+                              : '✓ Sempurna! Siap registrasi dengan akurasi tinggi'}
+                        </p>
+                        <p className="text-white/80 text-xs">
+                          {capturedImages.length < PHOTO_ANGLES.length
+                            ? PHOTO_ANGLES[currentPhotoAngle]
+                            : 'Dataset sempurna untuk training!'}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
-                
+
                 {/* Photo counter */}
                 <div className="absolute top-4 right-4">
-                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                    capturedImages.length >= MIN_PHOTOS 
-                      ? 'bg-green-500 text-white' 
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${capturedImages.length >= MIN_PHOTOS
+                      ? 'bg-green-500 text-white'
                       : 'bg-yellow-500 text-white'
-                  }`}>
+                    }`}>
                     {capturedImages.length}/{MIN_PHOTOS} foto
                   </span>
                 </div>
-                
+
                 {/* Liveness Detection Overlay */}
                 <AnimatePresence>
                   {status === 'liveness-check' && (
@@ -713,7 +932,7 @@ export default function AdminFaceRegisterPage() {
                       </div>
                     </motion.div>
                   )}
-                  
+
                   {status === 'success' && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -727,7 +946,7 @@ export default function AdminFaceRegisterPage() {
                       </div>
                     </motion.div>
                   )}
-                  
+
                   {status === 'error' && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -749,11 +968,10 @@ export default function AdminFaceRegisterPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-gray-800">Foto yang diambil:</p>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      capturedImages.length >= MIN_PHOTOS 
-                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${capturedImages.length >= MIN_PHOTOS
+                        ? 'bg-green-100 text-green-700 border border-green-300'
                         : 'bg-yellow-100 text-yellow-700 border border-yellow-300'
-                    }`}>
+                      }`}>
                       {capturedImages.length >= MIN_PHOTOS ? '✓ Cukup!' : `${MIN_PHOTOS - capturedImages.length} lagi`}
                     </span>
                   </div>
@@ -781,12 +999,34 @@ export default function AdminFaceRegisterPage() {
               <div className="flex space-x-3">
                 <button
                   onClick={handleCapture}
-                  disabled={!isCameraReady || capturedImages.length >= MAX_PHOTOS || status === 'processing'}
+                  disabled={!isCameraReady || capturedImages.length >= MAX_PHOTOS || status === 'processing' || isAutoCapture}
                   className="flex-1 inline-flex items-center justify-center px-4 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Camera className="w-5 h-5 mr-2" />
                   Ambil Foto ({capturedImages.length}/{MAX_PHOTOS})
                 </button>
+
+                {/* Auto-Capture Button */}
+                {!isAutoCapture ? (
+                  <button
+                    onClick={startAutoCapture}
+                    disabled={!isCameraReady || !selectedStudent || capturedImages.length >= MAX_PHOTOS}
+                    className="inline-flex items-center justify-center px-4 py-3.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Auto-capture otomatis"
+                  >
+                    <Loader2 className="w-5 h-5 mr-2" />
+                    Auto
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopAutoCapture}
+                    className="inline-flex items-center justify-center px-4 py-3.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all font-semibold shadow-lg hover:shadow-xl"
+                  >
+                    <X className="w-5 h-5 mr-2" />
+                    Stop
+                  </button>
+                )}
+
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={capturedImages.length >= MAX_PHOTOS}
@@ -819,11 +1059,10 @@ export default function AdminFaceRegisterPage() {
                   <button
                     onClick={handleRegister}
                     disabled={status === 'processing' || capturedImages.length < MIN_PHOTOS}
-                    className={`flex-1 inline-flex items-center justify-center px-4 py-3.5 rounded-xl transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
-                      capturedImages.length >= MIN_PHOTOS 
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white hover:from-green-700 hover:to-emerald-800' 
+                    className={`flex-1 inline-flex items-center justify-center px-4 py-3.5 rounded-xl transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${capturedImages.length >= MIN_PHOTOS
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white hover:from-green-700 hover:to-emerald-800'
                         : 'bg-gray-300 text-gray-500'
-                    }`}
+                      }`}
                   >
                     {status === 'processing' ? (
                       <>

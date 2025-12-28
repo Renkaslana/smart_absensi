@@ -111,8 +111,8 @@ export default function AbsensiPage() {
         setUserName(recognizedData.name || '');
         setMessage(`Selamat datang, ${recognizedData.name}!`);
         
-        // Submit attendance with image
-        const submitResponse = await absensiAPI.submit({ image_base64: imageSrc });
+        // Submit attendance with base64 image (without data URL prefix)
+        const submitResponse = await absensiAPI.submit({ image_base64: base64Image });
         
         // Show timestamp if available
         if (submitResponse.data?.timestamp) {

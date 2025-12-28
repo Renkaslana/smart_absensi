@@ -100,17 +100,64 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDashboardData();
+    // Check if token exists before fetching
+    const checkAuthAndFetch = async () => {
+      console.log('⏳ Dashboard mounted, checking auth...');
+      
+      // Wait for Zustand hydration
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const directToken = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const authStorage = typeof window !== 'undefined' ? localStorage.getItem('auth-storage') : null;
+      
+      console.log('🔍 After hydration delay:');
+      console.log('  - Direct token:', !!directToken);
+      console.log('  - Auth storage:', !!authStorage);
+      
+      if (directToken) {
+        console.log('✅ Direct token found, fetching...');
+        fetchDashboardData();
+      } else if (authStorage) {
+        console.log('✅ Auth storage found, fetching...');
+        fetchDashboardData();
+      } else {
+        console.warn('⚠️ No auth found after 500ms, retrying in 500ms...');
+        setTimeout(() => {
+          console.log('🔄 Retry attempt...');
+          fetchDashboardData();
+        }, 500);
+      }
+    };
+    
+    checkAuthAndFetch();
   }, []);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // Check all possible token sources
+      const directToken = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const authStorage = typeof window !== 'undefined' ? localStorage.getItem('auth-storage') : null;
+      
+      console.log('🔍 Fetching dashboard...');
+      console.log('🔑 Direct token:', directToken ? directToken.substring(0, 30) + '...' : 'NULL');
+      console.log('🔑 Auth storage:', authStorage ? 'EXISTS' : 'NULL');
+      
+      if (authStorage) {
+        try {
+          const parsed = JSON.parse(authStorage);
+          console.log('🔑 Zustand token:', parsed.state?.accessToken ? parsed.state.accessToken.substring(0, 30) + '...' : 'NULL');
+        } catch (e) {
+          console.error('Failed to parse auth storage:', e);
+        }
+      }
+      
       const response = await adminAPI.getDashboard();
       setData(response.data);
     } catch (err: any) {
       console.error('Dashboard fetch error:', err);
+      console.error('Error details:', err.response);
       setError(err.response?.data?.detail || 'Gagal memuat data dashboard');
     } finally {
       setIsLoading(false);
@@ -119,13 +166,13 @@ export default function AdminDashboardPage() {
 
   // Chart data for daily attendance
   const dailyChartData = {
-    labels: data?.attendance.daily_summary?.slice(0, 7).reverse().map(d => 
+    labels: data?.attendance?.daily_summary?.slice(0, 7).reverse().map(d => 
       format(new Date(d.date), 'dd MMM', { locale: id })
     ) || [],
     datasets: [
       {
         label: 'Kehadiran',
-        data: data?.attendance.daily_summary?.slice(0, 7).reverse().map(d => d.count) || [],
+        data: data?.attendance?.daily_summary?.slice(0, 7).reverse().map(d => d.count) || [],
         backgroundColor: 'rgba(59, 130, 246, 0.5)',
         borderColor: 'rgb(59, 130, 246)',
         borderWidth: 2,
@@ -136,10 +183,10 @@ export default function AdminDashboardPage() {
 
   // Chart data for class distribution
   const classChartData = {
-    labels: data?.attendance.by_kelas?.slice(0, 5).map(k => k.kelas) || [],
+    labels: data?.attendance?.by_kelas?.slice(0, 5).map(k => k.kelas) || [],
     datasets: [
       {
-        data: data?.attendance.by_kelas?.slice(0, 5).map(k => k.count) || [],
+        data: data?.attendance?.by_kelas?.slice(0, 5).map(k => k.count) || [],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)',
@@ -236,16 +283,16 @@ export default function AdminDashboardPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Mahasiswa</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {data?.overview.total_students || 0}
+                {data?.overview?.total_students ?? 0}
               </p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center">
               <Users className="w-7 h-7 text-blue-600" />
             </div>
           </div>
-          <div className="mt-4 flex items-center text-sm">
+            <div className="mt-4 flex items-center text-sm">
             <UserCheck className="w-4 h-4 text-green-500 mr-1" />
-            <span className="text-green-600 font-medium">{data?.overview.users_with_face || 0}</span>
+            <span className="text-green-600 font-medium">{data?.overview?.users_with_face || 0}</span>
             <span className="text-gray-500 ml-1">sudah registrasi wajah</span>
           </div>
         </motion.div>
@@ -256,7 +303,7 @@ export default function AdminDashboardPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Hadir Hari Ini</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {data?.attendance.today_count || 0}
+                {data?.attendance?.today_count ?? 0}
               </p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center">
@@ -264,7 +311,7 @@ export default function AdminDashboardPage() {
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <span className="text-gray-500">dari {data?.attendance.total_students || 0} mahasiswa</span>
+            <span className="text-gray-500">dari {data?.attendance?.total_students ?? 0} mahasiswa</span>
           </div>
         </motion.div>
 
@@ -274,7 +321,7 @@ export default function AdminDashboardPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Tingkat Kehadiran</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {data?.attendance.attendance_rate_today || 0}%
+                {data?.attendance?.attendance_rate_today ?? 0}%
               </p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center">
@@ -285,7 +332,7 @@ export default function AdminDashboardPage() {
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-purple-600 rounded-full transition-all duration-500"
-                style={{ width: `${data?.attendance.attendance_rate_today || 0}%` }}
+                style={{ width: `${data?.attendance?.attendance_rate_today ?? 0}%` }}
               />
             </div>
           </div>
@@ -297,7 +344,7 @@ export default function AdminDashboardPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Belum Registrasi</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {data?.overview.users_without_face || 0}
+                {data?.overview?.users_without_face ?? 0}
               </p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center">
@@ -347,7 +394,7 @@ export default function AdminDashboardPage() {
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Distribusi Kelas</h2>
           <div className="h-64 flex items-center justify-center">
-            {data?.attendance.by_kelas && data.attendance.by_kelas.length > 0 ? (
+            {data?.attendance?.by_kelas?.length > 0 ? (
               <Doughnut 
                 data={classChartData} 
                 options={{

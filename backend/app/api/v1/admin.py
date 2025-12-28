@@ -73,7 +73,7 @@ async def get_dashboard(
 @router.get("/students", response_model=PaginatedResponse[UserWithStats])
 async def get_all_students(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=1000),
     kelas: Optional[str] = None,
     has_face: Optional[bool] = None,
     current_admin: User = Depends(get_current_admin),

@@ -119,7 +119,7 @@ async def submit_attendance(
 @router.get("/history", response_model=PaginatedResponse[AbsensiResponse])
 async def get_attendance_history(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=1000),
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     current_user: User = Depends(get_current_user),

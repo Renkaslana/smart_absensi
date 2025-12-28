@@ -100,29 +100,30 @@ export default function FaceRegisterPage() {
     setMessage('Mendaftarkan wajah...');
 
     try {
-      // Convert base64 images to blobs
-      const files = await Promise.all(
-        capturedImages.map(async (img: CapturedImage, index: number) => {
-          const response = await fetch(img.data);
-          const blob = await response.blob();
-          return new File([blob], `face_${index}.jpg`, { type: 'image/jpeg' });
-        })
-      );
+      // Convert base64 images to array of base64 strings
+      const base64Images = capturedImages.map((img: CapturedImage) => img.data);
 
-      // Send to backend
-      const response = await faceAPI.register(files);
+      // Send to backend with images_base64
+      const response = await faceAPI.register(base64Images);
 
       if (response.data.success) {
         setStatus('success');
-        setMessage('Wajah berhasil didaftarkan!');
+        setMessage(`Wajah berhasil didaftarkan dengan ${response.data.encodings_count} encoding!`);
         setCapturedImages([]);
+        
+        // Refresh user data to update has_face status
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         setStatus('failed');
         setMessage(response.data.message || 'Gagal mendaftarkan wajah');
       }
     } catch (error: any) {
+      console.error('Face registration error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Terjadi kesalahan. Silakan coba lagi.';
       setStatus('failed');
-      setMessage(error.response?.data?.detail || 'Terjadi kesalahan. Silakan coba lagi.');
+      setMessage(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
     }
   };
 

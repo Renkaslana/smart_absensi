@@ -3,6 +3,17 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
 // API Base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
+// Function to get token - ALWAYS from localStorage direct
+const getAccessToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('access_token');
+};
+
+const getRefreshToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('refresh_token');
+};
+
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -14,9 +25,15 @@ const api: AxiosInstance = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    const token = getAccessToken();
+    console.log('🔐 API Request:', config.method?.toUpperCase(), config.url);
+    console.log('🔑 Token from localStorage:', token ? token.substring(0, 50) + '...' : 'NULL');
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('✅ Authorization header set');
+    } else {
+      console.error('❌ NO TOKEN FOUND in localStorage!');
     }
     return config;
   },
@@ -30,42 +47,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Token expired, try to refresh
-      const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
-      if (refreshToken) {
-        try {
-          const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
-            refresh_token: refreshToken,
-          });
-          const { access_token, refresh_token: new_refresh_token } = response.data;
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('access_token', access_token);
-            if (new_refresh_token) {
-              localStorage.setItem('refresh_token', new_refresh_token);
-            }
-          }
-          // Retry original request
-          if (error.config) {
-            error.config.headers.Authorization = `Bearer ${access_token}`;
-            return api.request(error.config);
-          }
-        } catch (refreshError) {
-          // Refresh failed, clear tokens and redirect to login
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
-          }
-        }
-      } else {
-        // No refresh token, redirect to login
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
-        }
+      console.warn('⚠️ Got 401 - redirecting to login');
+      // Don't clear tokens aggressively - just redirect
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

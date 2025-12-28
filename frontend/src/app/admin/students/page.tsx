@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  Edit, 
-  Trash2, 
+import {
+  Users,
+  Search,
+  Plus,
+  Edit,
+  Trash2,
   Eye,
+  EyeOff,
   Download,
   Filter,
   ChevronLeft,
@@ -16,9 +17,12 @@ import {
   X,
   CheckCircle,
   XCircle,
-  Camera
+  Camera,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { adminAPI } from '@/lib/api';
+import StudentForm from './StudentForm';
 
 interface Student {
   id: number;
@@ -42,7 +46,9 @@ export default function StudentsPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [modalMode, setModalMode] = useState<'view' | 'edit' | 'add'>('view');
-  const [formData, setFormData] = useState({ nim: '', name: '', email: '' });
+  const [formData, setFormData] = useState({ nim: '', name: '', email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailLocked, setEmailLocked] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const itemsPerPage = 10;
@@ -58,7 +64,27 @@ export default function StudentsPage() {
   const fetchStudents = async () => {
     try {
       const response = await adminAPI.getStudents({});
-      setStudents(response.data.students || []);
+
+      // Normalize backend response shapes:
+      // - New: { items: [...], total, page, ... }
+      // - Old/legacy: { students: [...] }
+      // - Some endpoints may wrap under data: { items: [...] }
+      const payload = response.data || {};
+      const rawItems = payload.students ?? payload.items ?? payload.data?.students ?? payload.data?.items ?? [];
+
+      const normalized = (rawItems || []).map((it: any) => ({
+        id: it.id,
+        nim: it.nim,
+        name: it.name,
+        email: it.email || '',
+        face_registered: it.has_face ?? it.hasFace ?? it.face_registered ?? false,
+        total_hadir: it.total_hadir ?? it.total_attendance ?? 0,
+        total_terlambat: it.total_terlambat ?? 0,
+        total_tidak_hadir: it.total_tidak_hadir ?? (typeof it.total_attendance === 'number' ? Math.max(0, (it.total_attendance - (it.total_hadir ?? it.total_attendance) - (it.total_terlambat ?? 0))) : 0),
+        created_at: it.created_at || it.createdAt || ''
+      }));
+
+      setStudents(normalized);
     } catch (error) {
       console.error('Error fetching students:', error);
       setStudents([]);
@@ -130,21 +156,26 @@ export default function StudentsPage() {
       nim: student?.nim || '',
       name: student?.name || '',
       email: student?.email || '',
+      password: '',
     });
+    // lock email by default when adding; unlock when editing
+    setEmailLocked(mode === 'add');
+    setShowPassword(false);
     setShowModal(true);
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       if (modalMode === 'add') {
         // Create new student
         await adminAPI.createStudent({
           nim: formData.nim,
           name: formData.name,
-          email: formData.email,
+          password: formData.password,
+          email: formData.email || undefined,
         });
         alert('Mahasiswa berhasil ditambahkan!');
       } else if (modalMode === 'edit' && selectedStudent) {
@@ -155,7 +186,7 @@ export default function StudentsPage() {
         });
         alert('Data mahasiswa berhasil diperbarui!');
       }
-      
+
       setShowModal(false);
       fetchStudents(); // Refresh data
     } catch (error: any) {
@@ -212,98 +243,130 @@ export default function StudentsPage() {
 
       {/* Filters */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="card"
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="card-toolbar"
       >
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+
           {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <div className="input-group flex-1">
+            <span className="input-icon-box">
+              <Search className="w-5 h-5" />
+            </span>
             <input
               type="text"
-              placeholder="Cari nama, NIM, atau email..."
+              placeholder="Cari nama, NIM, atau email…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field pl-10"
+              className="input-group-field"
             />
           </div>
 
-          {/* Face Filter */}
-          <div className="flex items-center space-x-2">
-            <Filter className="w-5 h-5 text-neutral-400" />
-            <select
-              value={faceFilter}
-              onChange={(e) => setFaceFilter(e.target.value)}
-              className="input-field min-w-[180px]"
-            >
-              <option value="all">Semua Status</option>
-              <option value="registered">Wajah Terdaftar</option>
-              <option value="not_registered">Wajah Belum Terdaftar</option>
-            </select>
-          </div>
+          {/* Controls */}
+          <div className="flex items-center gap-3">
 
-          {/* Export Button */}
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleExport}
-            className="btn-outline flex items-center space-x-2"
-          >
-            <Download className="w-4 h-4" />
-            <span>Export CSV</span>
-          </motion.button>
+            {/* Status Filter */}
+            <div className="input-group min-w-[200px]">
+              <span className="input-icon-box">
+                <Filter className="w-4 h-4" />
+              </span>
+              <select
+                value={faceFilter}
+                onChange={(e) => setFaceFilter(e.target.value)}
+                className="input-group-field"
+              >
+                <option value="all">Semua Status</option>
+                <option value="registered">Wajah Terdaftar</option>
+                <option value="not_registered">Belum Terdaftar</option>
+              </select>
+            </div>
+
+            {/* Export */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleExport}
+              className="btn-outline h-11 px-4 flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </motion.button>
+          </div>
         </div>
       </motion.div>
 
+
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Total Mahasiswa */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card bg-primary-50 border border-primary-200"
+          whileHover={{ y: -4 }}
+          className="stat-card"
         >
-          <div className="flex items-center space-x-3">
-            <Users className="w-8 h-8 text-primary-600" />
-            <div>
-              <p className="text-2xl font-bold text-primary-900">{students.length}</p>
-              <p className="text-sm text-primary-600">Total Mahasiswa</p>
-            </div>
+          <div className="stat-icon bg-primary-100 text-primary-600">
+            <Users className="w-6 h-6" />
+          </div>
+
+          <div>
+            <p className="stat-value text-primary-900">
+              {students.length}
+            </p>
+            <p className="stat-label">
+              Total Mahasiswa
+            </p>
           </div>
         </motion.div>
+
+        {/* Wajah Terdaftar */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="card bg-green-50 border border-green-200"
+          whileHover={{ y: -4 }}
+          className="stat-card"
         >
-          <div className="flex items-center space-x-3">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-            <div>
-              <p className="text-2xl font-bold text-green-900">
-                {students.filter((s) => s.face_registered).length}
-              </p>
-              <p className="text-sm text-green-600">Wajah Terdaftar</p>
-            </div>
+          <div className="stat-icon bg-green-100 text-green-600">
+            <CheckCircle className="w-6 h-6" />
+          </div>
+
+          <div>
+            <p className="stat-value text-green-900">
+              {students.filter((s) => s.face_registered).length}
+            </p>
+            <p className="stat-label">
+              Wajah Terdaftar
+            </p>
           </div>
         </motion.div>
+
+        {/* Belum Daftar Wajah */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="card bg-yellow-50 border border-yellow-200"
+          whileHover={{ y: -4 }}
+          className="stat-card"
         >
-          <div className="flex items-center space-x-3">
-            <Camera className="w-8 h-8 text-yellow-600" />
-            <div>
-              <p className="text-2xl font-bold text-yellow-900">
-                {students.filter((s) => !s.face_registered).length}
-              </p>
-              <p className="text-sm text-yellow-600">Belum Daftar Wajah</p>
-            </div>
+          <div className="stat-icon bg-yellow-100 text-yellow-600">
+            <Camera className="w-6 h-6" />
+          </div>
+
+          <div>
+            <p className="stat-value text-yellow-900">
+              {students.filter((s) => !s.face_registered).length}
+            </p>
+            <p className="stat-label">
+              Belum Daftar Wajah
+            </p>
           </div>
         </motion.div>
       </div>
+
 
       {/* Students Table */}
       <motion.div
@@ -319,86 +382,133 @@ export default function StudentsPage() {
         ) : (
           <>
             {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-neutral-50">
-                  <tr>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-neutral-700">NIM</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-neutral-700">Nama</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-neutral-700">Email</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-neutral-700">Wajah</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-neutral-700">Kehadiran</th>
-                    <th className="text-center py-4 px-6 text-sm font-semibold text-neutral-700">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedStudents.map((student, index) => (
-                    <motion.tr
-                      key={student.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50"
-                    >
-                      <td className="py-4 px-6 text-sm font-medium text-neutral-900">{student.nim}</td>
-                      <td className="py-4 px-6 text-sm text-neutral-900">{student.name}</td>
-                      <td className="py-4 px-6 text-sm text-neutral-600">{student.email}</td>
-                      <td className="py-4 px-6">
-                        {student.face_registered ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                            <CheckCircle className="w-3 h-3" />
-                            <span>Terdaftar</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center space-x-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
-                            <XCircle className="w-3 h-3" />
-                            <span>Belum</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center space-x-2 text-xs">
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">{student.total_hadir}</span>
-                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded">{student.total_terlambat}</span>
-                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded">{student.total_tidak_hadir}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center justify-center space-x-2">
-                          <button
-                            onClick={() => openModal('view', student)}
-                            className="p-2 hover:bg-neutral-100 rounded-lg text-neutral-600 hover:text-primary-600"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => openModal('edit', student)}
-                            className="p-2 hover:bg-neutral-100 rounded-lg text-neutral-600 hover:text-primary-600"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(student.id)}
-                            className="p-2 hover:bg-red-100 rounded-lg text-neutral-600 hover:text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
+<div className="hidden md:block overflow-x-auto">
+  <table className="w-full text-sm">
+    
+    {/* Header */}
+    <thead className="bg-neutral-50 border-b border-neutral-200">
+      <tr>
+        <th className="table-th">NIM</th>
+        <th className="table-th">Mahasiswa</th>
+        <th className="table-th">Email</th>
+        <th className="table-th">Wajah</th>
+        <th className="table-th">Kehadiran</th>
+        <th className="table-th text-center">Aksi</th>
+      </tr>
+    </thead>
+
+    {/* Body */}
+    <tbody>
+      {paginatedStudents.map((student, index) => (
+        <motion.tr
+          key={student.id}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.04 }}
+          className="table-row"
+        >
+          {/* NIM */}
+          <td className="table-td font-medium text-neutral-900">
+            {student.nim}
+          </td>
+
+          {/* Nama */}
+          <td className="table-td">
+            <div className="flex items-center gap-3 min-w-[220px]">
+              <div className="avatar-sm">
+                {(student.name || '')
+                  .split(' ')
+                  .map((n) => n[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-neutral-900 truncate">
+                  {student.name}
+                </p>
+                <p className="text-xs text-neutral-500 truncate">
+                  {student.nim}
+                </p>
+              </div>
             </div>
+          </td>
+
+          {/* Email */}
+          <td className="table-td text-neutral-600 max-w-[260px] truncate">
+            {student.email || '-'}
+          </td>
+
+          {/* Wajah */}
+          <td className="table-td">
+            {student.face_registered ? (
+              <span className="status-pill success">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Terdaftar
+              </span>
+            ) : (
+              <span className="status-pill warning">
+                <XCircle className="w-3.5 h-3.5" />
+                Belum
+              </span>
+            )}
+          </td>
+
+          {/* Kehadiran */}
+          <td className="table-td">
+            <div className="attendance-group">
+              <span className="attend-badge success">{student.total_hadir}</span>
+              <span className="attend-badge warning">{student.total_terlambat}</span>
+              <span className="attend-badge danger">{student.total_tidak_hadir}</span>
+            </div>
+          </td>
+
+          {/* Aksi */}
+          <td className="table-td">
+            <div className="flex justify-center gap-1">
+              <button
+                onClick={() => openModal('view', student)}
+                className="icon-btn hover:text-primary-600"
+                title="Lihat"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => openModal('edit', student)}
+                className="icon-btn hover:text-primary-600"
+                title="Edit"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDelete(student.id)}
+                className="icon-btn hover:text-red-600"
+                title="Hapus"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </td>
+        </motion.tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
 
             {/* Mobile Cards */}
             <div className="md:hidden space-y-4">
               {paginatedStudents.map((student) => (
-                <div key={student.id} className="border border-neutral-200 rounded-lg p-4">
+                <div key={student.id} className="border border-neutral-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-150 hover:-translate-y-0.5 bg-white">
                   <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="font-medium text-neutral-900">{student.name}</p>
-                      <p className="text-sm text-neutral-500">{student.nim}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 text-primary-700 flex items-center justify-center font-semibold">
+                        {((student.name || '').split(' ').map((n) => n[0]).join('') || '').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-neutral-900">{student.name}</p>
+                        <p className="text-sm text-neutral-500">{student.nim}</p>
+                      </div>
                     </div>
                     {student.face_registered ? (
                       <CheckCircle className="w-5 h-5 text-green-600" />
@@ -406,7 +516,7 @@ export default function StudentsPage() {
                       <XCircle className="w-5 h-5 text-yellow-600" />
                     )}
                   </div>
-                  <p className="text-sm text-neutral-600 mb-3">{student.email}</p>
+                  <p className="text-sm text-neutral-600 mb-3 truncate">{student.email}</p>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2 text-xs">
                       <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">{student.total_hadir}</span>
@@ -472,14 +582,14 @@ export default function StudentsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-6"
             onClick={() => setShowModal(false)}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-6 border-b border-neutral-200">
@@ -493,7 +603,7 @@ export default function StudentsPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="p-6 space-y-4">
                 {modalMode === 'view' && selectedStudent ? (
                   <>
@@ -532,50 +642,17 @@ export default function StudentsPage() {
                     </div>
                   </>
                 ) : (
-                  <form onSubmit={handleFormSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">NIM</label>
-                      <input
-                        type="text"
-                        value={formData.nim}
-                        onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
-                        className="input-field"
-                        placeholder="Masukkan NIM"
-                        required
-                        disabled={modalMode === 'edit'}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">Nama Lengkap</label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="input-field"
-                        placeholder="Masukkan nama lengkap"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="input-field"
-                        placeholder="Masukkan email"
-                      />
-                    </div>
-                    <div className="pt-4">
-                      <button 
-                        type="submit" 
-                        className="btn-primary w-full"
-                        disabled={isSubmitting}
-                      >
-                        {isSubmitting ? 'Menyimpan...' : modalMode === 'edit' ? 'Simpan Perubahan' : 'Tambah Mahasiswa'}
-                      </button>
-                    </div>
-                  </form>
+                  <StudentForm
+                    modalMode={modalMode === 'add' ? 'add' : 'edit'}
+                    formData={formData}
+                    setFormData={setFormData}
+                    showPassword={showPassword}
+                    setShowPassword={setShowPassword}
+                    emailLocked={emailLocked}
+                    setEmailLocked={setEmailLocked}
+                    isSubmitting={isSubmitting}
+                    handleFormSubmit={handleFormSubmit}
+                  />
                 )}
               </div>
             </motion.div>

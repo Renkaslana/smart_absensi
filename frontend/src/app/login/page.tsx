@@ -46,28 +46,32 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await authApi.login({
-        nim: formData.nim,
-        password: formData.password,
-      });
-
+      const response = await authApi.login({ nim: formData.nim, password: formData.password });
       const { access_token, refresh_token, user } = response.data;
-      
+
+      if (!access_token || !user) {
+        throw new Error('Invalid response format from server');
+      }
+
+      // Update zustand store (store should handle persistence)
       setAuth(user, access_token, refresh_token);
-      
-      // Redirect based on role
+
+      // Redirect using Next router (replace so history isn't cluttered)
       if (user.role === 'admin') {
-        router.push('/admin');
+        router.replace('/admin/dashboard');
       } else {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       }
     } catch (err: any) {
-      const message = err.response?.data?.detail || 'Login gagal. Periksa NIM dan password Anda.';
-      setError(typeof message === 'string' ? message : 'Login gagal');
+      console.error('❌ Login error:', err);
+      const serverData = err?.response?.data;
+      const message = serverData?.detail || serverData?.message || (typeof serverData === 'string' ? serverData : null) || err.message || 'Login gagal. Periksa NIM dan password Anda.';
+      setError(typeof message === 'string' ? message : JSON.stringify(message));
     } finally {
       setIsLoading(false);
     }
@@ -142,6 +146,7 @@ export default function LoginPage() {
                 onChange={handleChange}
                 placeholder="Masukkan NIM Anda"
                 className="input"
+                disabled={isLoading}
                 required
                 autoComplete="username"
               />
@@ -161,6 +166,7 @@ export default function LoginPage() {
                   onChange={handleChange}
                   placeholder="Masukkan password Anda"
                   className="input pr-12"
+                  disabled={isLoading}
                   required
                   autoComplete="current-password"
                 />
@@ -168,6 +174,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
+                  aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -175,6 +182,11 @@ export default function LoginPage() {
                     <Eye className="w-5 h-5" />
                   )}
                 </button>
+              </div>
+              <div className="text-right mt-2">
+                <Link href="/forgot-password" className="text-xs text-primary-600 hover:underline">
+                  Lupa password?
+                </Link>
               </div>
             </div>
 
@@ -208,7 +220,7 @@ export default function LoginPage() {
 
         {/* Footer Text */}
         <p className="text-center text-white/60 text-sm mt-6">
-          © 2024 Smart Absensi. Sistem Absensi Berbasis Wajah.
+          © 2025 Smart Absensi. Sistem Absensi Berbasis Wajah.
         </p>
       </motion.div>
     </div>

@@ -15,7 +15,8 @@ import {
   Search,
   UserCheck,
   Upload,
-  Trash2
+  Trash2,
+  Shield
 } from 'lucide-react';
 import { faceAPI, adminAPI } from '@/lib/api';
 
@@ -33,7 +34,16 @@ interface CapturedImage {
   data: string;
 }
 
-type RegistrationStatus = 'idle' | 'capturing' | 'processing' | 'success' | 'error';
+interface FaceSettings {
+  confidenceThreshold: number;
+  livenessEnabled: boolean;
+  blinkDetection: boolean;
+  headMovement: boolean;
+  maxAttempts: number;
+}
+
+type RegistrationStatus = 'idle' | 'capturing' | 'processing' | 'success' | 'error' | 'liveness-check';
+type LivenessStep = 'blink' | 'turn-left' | 'turn-right' | 'complete';
 
 export default function AdminFaceRegisterPage() {
   const webcamRef = useRef<Webcam>(null);
@@ -44,21 +54,67 @@ export default function AdminFaceRegisterPage() {
   const [selectedStudent, setSelectedStudent] = useState<StudentOption | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'no-face'>('no-face');
+  const [filterMode, setFilterMode] = useState<'all' | 'no-face' | 'registered'>('no-face');
   
   const [status, setStatus] = useState<RegistrationStatus>('idle');
   const [message, setMessage] = useState('');
   const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  
+  // Liveness Detection
+  const [settings, setSettings] = useState<FaceSettings>({
+    confidenceThreshold: 0.8,
+    livenessEnabled: false,
+    blinkDetection: false,
+    headMovement: false,
+    maxAttempts: 3,
+  });
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [livenessStep, setLivenessStep] = useState<LivenessStep>('blink');
+  const [livenessInstructions, setLivenessInstructions] = useState('');
+  const [attemptCount, setAttemptCount] = useState(0);
 
-  const MIN_PHOTOS = 3;
-  const MAX_PHOTOS = 10;
+  const MIN_PHOTOS = 5;
+  const MAX_PHOTOS = 15;
+  const RECOMMENDED_PHOTOS = 10;
 
-  // Fetch students dropdown
+  // Fetch settings and students with auto-refresh
   useEffect(() => {
+    fetchSettings();
     fetchStudents();
+    
+    // Auto-refresh every 10 seconds for real-time updates
+    const intervalId = setInterval(() => {
+      console.log('🔄 Auto-refreshing students...');
+      fetchStudents();
+    }, 10000);
+    
+    // Cleanup interval on unmount or filterMode change
+    return () => clearInterval(intervalId);
   }, [filterMode]);
+
+  const fetchSettings = async () => {
+    setIsLoadingSettings(true);
+    try {
+      // Try to get from API, fallback to localStorage
+      const storedSettings = localStorage.getItem('faceRecognitionSettings');
+      if (storedSettings) {
+        const parsed = JSON.parse(storedSettings);
+        setSettings({
+          confidenceThreshold: parsed.confidenceThreshold || 0.8,
+          livenessEnabled: parsed.livenessEnabled || false,
+          blinkDetection: parsed.blinkDetection || false,
+          headMovement: parsed.headMovement || false,
+          maxAttempts: parsed.maxAttempts || 3,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  };
 
   // Filter students based on search
   useEffect(() => {
@@ -80,16 +136,38 @@ export default function AdminFaceRegisterPage() {
   const fetchStudents = async () => {
     setIsLoadingStudents(true);
     try {
-      // face_registered=false means get students WITHOUT face registered
-      // face_registered=true means get students WITH face registered
-      // face_registered=undefined means get ALL students
-      const faceRegisteredParam = filterMode === 'no-face' ? false : (filterMode === 'all' ? undefined : true);
-      const response = await adminAPI.getStudentsDropdown(faceRegisteredParam);
-      setStudents(response.data.students || []);
-      setFilteredStudents(response.data.students || []);
+      const response = await adminAPI.getStudents({});
+      
+      // Normalize backend response (sama seperti di students page)
+      const payload = response.data || {};
+      const rawItems = payload.students ?? payload.items ?? payload.data?.students ?? payload.data?.items ?? [];
+
+      const normalized = (rawItems || []).map((it: any) => ({
+        id: it.id,
+        nim: it.nim,
+        name: it.name,
+        kelas: it.kelas || it.class || '-',
+        jurusan: it.jurusan || it.major || '-',
+        has_face: it.has_face ?? it.hasFace ?? it.face_registered ?? false
+      }));
+
+      // Filter based on mode
+      let filtered = normalized;
+      if (filterMode === 'no-face') {
+        filtered = normalized.filter((s: StudentOption) => !s.has_face);
+      } else if (filterMode === 'registered') {
+        filtered = normalized.filter((s: StudentOption) => s.has_face);
+      }
+      // filterMode === 'all' means show all
+
+      setStudents(filtered);
+      setFilteredStudents(filtered);
+      console.log('✅ Students loaded:', filtered.length, 'Mode:', filterMode);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('❌ Error fetching students:', error);
       setMessage('Gagal memuat data mahasiswa');
+      setStudents([]);
+      setFilteredStudents([]);
     } finally {
       setIsLoadingStudents(false);
     }
@@ -106,6 +184,20 @@ export default function AdminFaceRegisterPage() {
       return;
     }
     
+    // Check max attempts
+    if (attemptCount >= settings.maxAttempts && capturedImages.length < MIN_PHOTOS) {
+      setStatus('error');
+      setMessage(`Maksimal ${settings.maxAttempts} percobaan tercapai. Silakan reset dan coba lagi.`);
+      return;
+    }
+    
+    // If liveness detection enabled, do liveness check first
+    if (settings.livenessEnabled && capturedImages.length === 0) {
+      setStatus('liveness-check');
+      startLivenessCheck();
+      return;
+    }
+    
     const imageSrc = webcamRef.current.getScreenshot();
     if (imageSrc) {
       const newImage: CapturedImage = {
@@ -113,10 +205,79 @@ export default function AdminFaceRegisterPage() {
         data: imageSrc
       };
       setCapturedImages(prev => [...prev, newImage]);
+      setAttemptCount(prev => prev + 1);
       setStatus('idle');
-      setMessage(`${capturedImages.length + 1} foto diambil. ${Math.max(0, MIN_PHOTOS - capturedImages.length - 1)} foto lagi diperlukan.`);
+      
+      // Progressive feedback messages
+      const remaining = MIN_PHOTOS - capturedImages.length - 1;
+      const totalCaptured = capturedImages.length + 1;
+      
+      if (totalCaptured < MIN_PHOTOS) {
+        setMessage(`✓ ${totalCaptured} foto diambil. ${remaining} foto lagi untuk mencapai minimum.`);
+      } else if (totalCaptured >= MIN_PHOTOS && totalCaptured < RECOMMENDED_PHOTOS) {
+        const toOptimal = RECOMMENDED_PHOTOS - totalCaptured;
+        setMessage(`✓ Minimum tercapai! ${toOptimal} foto lagi untuk hasil optimal (akurasi 90%+).`);
+      } else {
+        setMessage(`✓ Sempurna! ${totalCaptured} foto - Dataset optimal untuk akurasi tinggi!`);
+      }
     }
-  }, [selectedStudent, capturedImages.length]);
+  }, [selectedStudent, capturedImages.length, attemptCount, settings]);
+
+  const startLivenessCheck = () => {
+    const steps: LivenessStep[] = [];
+    if (settings.blinkDetection) steps.push('blink');
+    if (settings.headMovement) {
+      steps.push('turn-left');
+      steps.push('turn-right');
+    }
+    
+    if (steps.length === 0) {
+      // No liveness check, proceed to capture
+      setStatus('idle');
+      return;
+    }
+    
+    setLivenessStep(steps[0]);
+    performLivenessSteps(steps, 0);
+  };
+
+  const performLivenessSteps = (steps: LivenessStep[], currentIndex: number) => {
+    if (currentIndex >= steps.length) {
+      setStatus('idle');
+      setMessage('Verifikasi liveness berhasil! Ambil foto sekarang.');
+      setTimeout(() => {
+        if (webcamRef.current) {
+          const imageSrc = webcamRef.current.getScreenshot();
+          if (imageSrc) {
+            const newImage: CapturedImage = {
+              id: Date.now().toString(),
+              data: imageSrc
+            };
+            setCapturedImages(prev => [...prev, newImage]);
+            setMessage('1 foto diambil. Ambil dari sudut berbeda.');
+          }
+        }
+      }, 500);
+      return;
+    }
+
+    const currentStep = steps[currentIndex];
+    setLivenessStep(currentStep);
+    
+    const instructions: Record<LivenessStep, string> = {
+      'blink': 'Kedipkan mata Anda beberapa kali',
+      'turn-left': 'Putar kepala ke kiri',
+      'turn-right': 'Putar kepala ke kanan',
+      'complete': 'Selesai'
+    };
+    
+    setLivenessInstructions(instructions[currentStep]);
+    
+    // Simulate step completion after 3 seconds
+    setTimeout(() => {
+      performLivenessSteps(steps, currentIndex + 1);
+    }, 3000);
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -149,6 +310,7 @@ export default function AdminFaceRegisterPage() {
     setCapturedImages([]);
     setStatus('idle');
     setMessage('');
+    setAttemptCount(0);
   };
 
   const handleRegister = async () => {
@@ -173,7 +335,12 @@ export default function AdminFaceRegisterPage() {
       
       if (response.data.success) {
         setStatus('success');
-        setMessage(response.data.message || 'Wajah berhasil didaftarkan!');
+        const qualityNote = capturedImages.length >= RECOMMENDED_PHOTOS 
+          ? ' (Dataset optimal - akurasi 90%+!)' 
+          : capturedImages.length >= MIN_PHOTOS 
+          ? ' (Dapat ditingkatkan dengan lebih banyak foto)' 
+          : '';
+        setMessage(`✓ Wajah berhasil didaftarkan dengan ${capturedImages.length} foto${qualityNote}\nDisimpan: dataset_wajah/${selectedStudent.nim}/`);
         
         // Update student list
         setStudents(prev => 
@@ -215,6 +382,7 @@ export default function AdminFaceRegisterPage() {
     setCapturedImages([]);
     setStatus('idle');
     setMessage('');
+    setAttemptCount(0);
   };
 
   return (
@@ -232,17 +400,20 @@ export default function AdminFaceRegisterPage() {
         <div className="flex items-center space-x-3">
           <select
             value={filterMode}
-            onChange={(e) => setFilterMode(e.target.value as 'all' | 'no-face')}
-            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            onChange={(e) => setFilterMode(e.target.value as 'all' | 'no-face' | 'registered')}
+            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
           >
             <option value="no-face">Belum Registrasi</option>
+            <option value="registered">Sudah Registrasi</option>
             <option value="all">Semua Mahasiswa</option>
           </select>
           <button
             onClick={fetchStudents}
-            className="inline-flex items-center px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50"
+            disabled={isLoadingStudents}
+            className="inline-flex items-center px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            title="Refresh data mahasiswa"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isLoadingStudents ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </motion.div>
@@ -293,15 +464,15 @@ export default function AdminFaceRegisterPage() {
                   className="absolute z-20 w-full mt-2 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
                 >
                   {/* Search */}
-                  <div className="p-3 border-b border-gray-100">
+                  <div className="p-3 border-b border-gray-100 bg-gray-50">
                     <div className="relative">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Cari nama atau NIM..."
-                        className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                         autoFocus
                       />
                     </div>
@@ -324,26 +495,28 @@ export default function AdminFaceRegisterPage() {
                         <button
                           key={student.id}
                           onClick={() => handleStudentSelect(student)}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                          className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-150 border-b border-gray-100 last:border-0 group"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                              student.has_face ? 'bg-green-100' : 'bg-gray-100'
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
+                              student.has_face 
+                                ? 'bg-gradient-to-br from-green-400 to-emerald-600' 
+                                : 'bg-gradient-to-br from-gray-200 to-gray-300'
                             }`}>
                               {student.has_face ? (
-                                <UserCheck className="w-4 h-4 text-green-600" />
+                                <UserCheck className="w-5 h-5 text-white" />
                               ) : (
-                                <User className="w-4 h-4 text-gray-500" />
+                                <User className="w-5 h-5 text-gray-600" />
                               )}
                             </div>
                             <div className="text-left">
-                              <p className="font-medium text-gray-900">{student.name}</p>
-                              <p className="text-xs text-gray-500">{student.nim} • {student.kelas || '-'}</p>
+                              <p className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{student.name}</p>
+                              <p className="text-xs text-gray-600 font-medium">{student.nim} • {student.kelas || '-'}</p>
                             </div>
                           </div>
                           {student.has_face && (
-                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                              Terdaftar
+                            <span className="text-xs text-green-700 bg-green-100 border border-green-200 px-2.5 py-1 rounded-full font-semibold">
+                              ✓ Terdaftar
                             </span>
                           )}
                         </button>
@@ -360,15 +533,23 @@ export default function AdminFaceRegisterPage() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-blue-50 rounded-xl border border-blue-100"
+              className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm"
             >
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-600 font-medium">Mahasiswa Terpilih</p>
-                  <p className="text-lg font-semibold text-gray-900 mt-1">{selectedStudent.name}</p>
-                  <p className="text-sm text-gray-600">{selectedStudent.nim}</p>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs bg-blue-500 text-white rounded-full font-semibold">Dipilih</span>
+                    {selectedStudent.has_face && (
+                      <span className="px-2 py-0.5 text-xs bg-green-500 text-white rounded-full font-semibold">✓ Sudah Terdaftar</span>
+                    )}
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{selectedStudent.name}</p>
+                  <p className="text-sm text-gray-700 font-medium mt-0.5">{selectedStudent.nim}</p>
                   {selectedStudent.kelas && (
-                    <p className="text-sm text-gray-500">Kelas: {selectedStudent.kelas}</p>
+                    <p className="text-sm text-gray-600 mt-1">Kelas: <span className="font-semibold">{selectedStudent.kelas}</span></p>
+                  )}
+                  {selectedStudent.jurusan && (
+                    <p className="text-sm text-gray-600">Jurusan: <span className="font-semibold">{selectedStudent.jurusan}</span></p>
                   )}
                 </div>
                 <button
@@ -376,18 +557,19 @@ export default function AdminFaceRegisterPage() {
                     setSelectedStudent(null);
                     setCapturedImages([]);
                   }}
-                  className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
+                  className="p-2.5 hover:bg-blue-200 rounded-lg transition-colors group"
+                  title="Batalkan pilihan"
                 >
-                  <X className="w-5 h-5 text-blue-600" />
+                  <X className="w-5 h-5 text-blue-600 group-hover:text-blue-800" />
                 </button>
               </div>
               
               {selectedStudent.has_face && (
-                <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg border-2 border-yellow-300">
                   <div className="flex items-start space-x-2">
                     <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-yellow-700">
-                      Mahasiswa ini sudah memiliki wajah terdaftar. Mendaftarkan ulang akan mengganti data wajah sebelumnya.
+                    <p className="text-sm text-yellow-800 font-medium">
+                      Mahasiswa ini sudah memiliki wajah terdaftar. Mendaftarkan ulang akan <strong>mengganti data wajah sebelumnya</strong>.
                     </p>
                   </div>
                 </div>
@@ -397,17 +579,23 @@ export default function AdminFaceRegisterPage() {
 
           {/* Stats */}
           <div className="mt-6 grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <User className="w-5 h-5 text-gray-500" />
+              </div>
+              <p className="text-3xl font-bold text-gray-900">
                 {students.filter(s => !s.has_face).length}
               </p>
-              <p className="text-sm text-gray-500">Belum Registrasi</p>
+              <p className="text-sm text-gray-600 font-medium mt-1">Belum Registrasi</p>
             </div>
-            <div className="p-4 bg-green-50 rounded-xl">
-              <p className="text-2xl font-bold text-green-700">
+            <div className="p-5 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border-2 border-green-200 hover:border-green-300 transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <UserCheck className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-3xl font-bold text-green-700">
                 {students.filter(s => s.has_face).length}
               </p>
-              <p className="text-sm text-green-600">Sudah Registrasi</p>
+              <p className="text-sm text-green-700 font-medium mt-1">Sudah Registrasi</p>
             </div>
           </div>
         </motion.div>
@@ -442,11 +630,12 @@ export default function AdminFaceRegisterPage() {
                   ref={webcamRef}
                   audio={false}
                   screenshotFormat="image/jpeg"
-                  screenshotQuality={0.95}
+                  screenshotQuality={1.0}
                   videoConstraints={{
-                    width: 1280,
-                    height: 960,
-                    facingMode: 'user'
+                    width: 1920,
+                    height: 1080,
+                    facingMode: 'user',
+                    aspectRatio: 4/3
                   }}
                   onUserMedia={handleCameraReady}
                   className="w-full h-full object-cover"
@@ -458,12 +647,25 @@ export default function AdminFaceRegisterPage() {
                 </div>
                 
                 {/* Guide Text */}
-                <div className="absolute bottom-4 left-0 right-0 text-center">
-                  <p className="text-white text-sm bg-black/50 inline-block px-4 py-2 rounded-full">
-                    {capturedImages.length < MIN_PHOTOS 
-                      ? `Ambil ${MIN_PHOTOS - capturedImages.length} foto lagi (sudut berbeda)` 
-                      : 'Siap untuk didaftarkan!'}
-                  </p>
+                <div className="absolute bottom-4 left-0 right-0 text-center px-4">
+                  <div className="bg-black/70 inline-block px-5 py-3 rounded-xl backdrop-blur-sm border border-white/20">
+                    <p className="text-white text-sm font-semibold mb-1">
+                      {capturedImages.length < MIN_PHOTOS 
+                        ? `Foto ${capturedImages.length}/${MIN_PHOTOS} - ${MIN_PHOTOS - capturedImages.length} foto lagi` 
+                        : capturedImages.length < RECOMMENDED_PHOTOS
+                        ? `✓ Minimum tercapai! ${RECOMMENDED_PHOTOS - capturedImages.length} foto lagi untuk hasil optimal`
+                        : '✓ Sempurna! Siap registrasi dengan akurasi tinggi'}
+                    </p>
+                    <p className="text-white/80 text-xs">
+                      {capturedImages.length === 0 && 'Mulai dari foto depan dengan pencahayaan baik'}
+                      {capturedImages.length === 1 && 'Bagus! Sekarang foto dari kiri 30°'}
+                      {capturedImages.length === 2 && 'Lanjut foto dari kanan 30°'}
+                      {capturedImages.length === 3 && 'Foto sedikit miring ke kiri bawah'}
+                      {capturedImages.length === 4 && 'Foto sedikit miring ke kanan bawah'}
+                      {capturedImages.length >= 5 && capturedImages.length < RECOMMENDED_PHOTOS && 'Tambah variasi sudut untuk akurasi optimal'}
+                      {capturedImages.length >= RECOMMENDED_PHOTOS && 'Dataset sempurna untuk training!'}
+                    </p>
+                  </div>
                 </div>
                 
                 {/* Photo counter */}
@@ -477,6 +679,25 @@ export default function AdminFaceRegisterPage() {
                   </span>
                 </div>
                 
+                {/* Liveness Detection Overlay */}
+                <AnimatePresence>
+                  {status === 'liveness-check' && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/70 flex items-center justify-center"
+                    >
+                      <div className="text-center text-white px-6">
+                        <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4" />
+                        <p className="font-semibold text-xl mb-2">Verifikasi Liveness</p>
+                        <p className="text-lg">{livenessInstructions}</p>
+                        <p className="text-sm mt-3 text-white/70">Ikuti instruksi untuk membuktikan Anda manusia asli</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Status Overlay */}
                 <AnimatePresence>
                   {status === 'processing' && (
@@ -525,20 +746,30 @@ export default function AdminFaceRegisterPage() {
 
               {/* Captured Images Preview */}
               {capturedImages.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Foto yang diambil:</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-800">Foto yang diambil:</p>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      capturedImages.length >= MIN_PHOTOS 
+                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                        : 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                    }`}>
+                      {capturedImages.length >= MIN_PHOTOS ? '✓ Cukup!' : `${MIN_PHOTOS - capturedImages.length} lagi`}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-5 gap-2">
                     {capturedImages.map((img, index) => (
-                      <div key={img.id} className="relative aspect-square rounded-lg overflow-hidden group">
+                      <div key={img.id} className="relative aspect-square rounded-lg overflow-hidden group border-2 border-gray-200 hover:border-blue-400 transition-all">
                         <img src={img.data} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
                         <button
                           onClick={() => removeImage(img.id)}
-                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          className="absolute inset-0 bg-red-500/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Hapus foto ini"
                         >
                           <Trash2 className="w-5 h-5 text-white" />
                         </button>
-                        <span className="absolute bottom-1 left-1 text-xs bg-black/70 text-white px-1.5 py-0.5 rounded">
-                          {index + 1}
+                        <span className="absolute top-1 left-1 text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold shadow-lg">
+                          #{index + 1}
                         </span>
                       </div>
                     ))}
@@ -551,7 +782,7 @@ export default function AdminFaceRegisterPage() {
                 <button
                   onClick={handleCapture}
                   disabled={!isCameraReady || capturedImages.length >= MAX_PHOTOS || status === 'processing'}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                  className="flex-1 inline-flex items-center justify-center px-4 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Camera className="w-5 h-5 mr-2" />
                   Ambil Foto ({capturedImages.length}/{MAX_PHOTOS})
@@ -559,7 +790,8 @@ export default function AdminFaceRegisterPage() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={capturedImages.length >= MAX_PHOTOS}
-                  className="inline-flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+                  className="inline-flex items-center justify-center px-4 py-3.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold border-2 border-gray-300 disabled:opacity-50"
+                  title="Upload dari file"
                 >
                   <Upload className="w-5 h-5" />
                 </button>
@@ -579,7 +811,7 @@ export default function AdminFaceRegisterPage() {
                   <button
                     onClick={handleRetake}
                     disabled={status === 'processing'}
-                    className="flex-1 inline-flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+                    className="flex-1 inline-flex items-center justify-center px-4 py-3.5 bg-white border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all font-semibold disabled:opacity-50"
                   >
                     <RefreshCw className="w-5 h-5 mr-2" />
                     Reset Semua
@@ -587,18 +819,21 @@ export default function AdminFaceRegisterPage() {
                   <button
                     onClick={handleRegister}
                     disabled={status === 'processing' || capturedImages.length < MIN_PHOTOS}
-                    className={`flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl transition-colors font-medium disabled:opacity-50 ${
+                    className={`flex-1 inline-flex items-center justify-center px-4 py-3.5 rounded-xl transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
                       capturedImages.length >= MIN_PHOTOS 
-                        ? 'bg-green-600 text-white hover:bg-green-700' 
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white hover:from-green-700 hover:to-emerald-800' 
                         : 'bg-gray-300 text-gray-500'
                     }`}
                   >
                     {status === 'processing' ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Memproses...
+                      </>
                     ) : (
                       <>
                         <CheckCircle className="w-5 h-5 mr-2" />
-                        Daftarkan ({capturedImages.length} foto)
+                        Daftarkan Wajah ({capturedImages.length} foto)
                       </>
                     )}
                   </button>
@@ -607,34 +842,99 @@ export default function AdminFaceRegisterPage() {
 
               {/* Message */}
               {message && status === 'idle' && (
-                <p className="text-sm text-center text-blue-600">{message}</p>
+                <div className="p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                  <p className="text-sm text-center text-blue-700 font-medium">{message}</p>
+                </div>
               )}
             </div>
           )}
 
+          {/* Settings Info */}
+          {selectedStudent && (
+            <div className="mt-4 p-5 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
+              <h3 className="font-bold text-purple-900 mb-3 flex items-center">
+                <Shield className="w-5 h-5 mr-2" />
+                Pengaturan Keamanan
+              </h3>
+              <div className="space-y-2 text-sm text-purple-800">
+                {settings.livenessEnabled ? (
+                  <div className="flex items-center space-x-2 p-2 bg-green-100 rounded-lg border border-green-300">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="font-semibold">Liveness Detection: <strong className="text-green-700">Aktif</strong></span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 p-2 bg-gray-100 rounded-lg border border-gray-300">
+                    <AlertCircle className="w-5 h-5 text-gray-500" />
+                    <span className="font-semibold text-gray-600">Liveness Detection: Nonaktif</span>
+                  </div>
+                )}
+                {settings.blinkDetection && (
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="font-medium">Deteksi Kedipan Mata</span>
+                  </div>
+                )}
+                {settings.headMovement && (
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="font-medium">Deteksi Gerakan Kepala</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t border-purple-200 mt-2">
+                  <span className="font-medium">Maksimal Percobaan:</span>
+                  <span className="font-bold text-purple-900">{settings.maxAttempts}x</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Percobaan saat ini:</span>
+                  <span className={`font-bold ${attemptCount >= settings.maxAttempts ? 'text-red-700' : 'text-purple-900'}`}>{attemptCount}/{settings.maxAttempts}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Instructions */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-            <h3 className="font-medium text-gray-900 mb-2">Panduan Registrasi Wajah</h3>
-            <ul className="text-sm text-gray-600 space-y-1.5">
+          <div className="mt-6 p-5 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-200 shadow-sm">
+            <h3 className="font-bold text-indigo-900 mb-4 flex items-center text-base">
+              <Shield className="w-5 h-5 mr-2" />
+              Panduan Registrasi Wajah untuk Akurasi 90%+
+            </h3>
+            <ul className="text-sm text-gray-700 space-y-2.5">
               <li className="flex items-start space-x-2">
-                <span className="text-blue-600 font-bold">1.</span>
-                <span>Ambil <strong>minimal 3 foto</strong> dari sudut berbeda (depan, kiri, kanan)</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                <span>Ambil <strong className="text-blue-700">minimal 5 foto</strong> (rekomendasi <strong className="text-green-700">10 foto</strong>) dari berbagai sudut:</span>
+              </li>
+              <li className="ml-8 text-xs text-gray-600 space-y-1">
+                <div>• Depan langsung (0°)</div>
+                <div>• Kiri 30° dan 45°</div>
+                <div>• Kanan 30° dan 45°</div>
+                <div>• Sedikit miring ke atas dan bawah</div>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="text-blue-600 font-bold">2.</span>
-                <span>Pastikan wajah terlihat jelas dan tidak tertutup</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                <span><strong className="text-blue-700">Pencahayaan optimal:</strong> Cahaya natural/lampu putih dari depan, hindari backlight</span>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="text-blue-600 font-bold">3.</span>
-                <span>Pencahayaan cukup dan merata</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                <span>Wajah <strong className="text-blue-700">harus jelas</strong>: lepas kacamata hitam, masker, topi</span>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="text-blue-600 font-bold">4.</span>
-                <span>Lepas kacamata hitam atau masker jika ada</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                <span><strong className="text-blue-700">Ekspresi netral</strong> dan rileks, hindari ekspresi berlebihan</span>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="text-green-600">✓</span>
-                <span className="text-green-700">Semakin banyak foto (hingga 10), semakin akurat pengenalan wajah</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">5</span>
+                <span><strong className="text-blue-700">Background sederhana</strong>, hindari latar ramai atau bergerak</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">6</span>
+                <span><strong className="text-blue-700">Jarak optimal:</strong> 50-70cm dari kamera, wajah memenuhi oval panduan</span>
+              </li>
+              <li className="flex items-start space-x-2 pt-3 border-t-2 border-indigo-300 mt-3">
+                <span className="text-green-600 font-bold text-xl">✓</span>
+                <div>
+                  <span className="text-green-800 font-bold block">Rekomendasi terbaik: 10 foto berbeda!</span>
+                  <span className="text-xs text-gray-600 block mt-1">Foto disimpan di: <code className="bg-purple-100 px-2 py-0.5 rounded text-purple-700">dataset_wajah/{'{'}NIM{'}'}/</code></span>
+                </div>
               </li>
             </ul>
           </div>

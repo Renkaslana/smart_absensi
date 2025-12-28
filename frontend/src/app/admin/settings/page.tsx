@@ -14,6 +14,8 @@ import {
   Sliders
 } from 'lucide-react';
 
+import TimePicker from '../../../components/TimePicker';
+
 export default function AdminSettingsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState('attendance');
@@ -127,13 +129,9 @@ export default function AdminSettingsPage() {
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
                       Waktu Mulai Absensi
                     </label>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={attendanceSettings.startTime}
-                      onChange={(e) =>
-                        setAttendanceSettings({ ...attendanceSettings, startTime: e.target.value })
-                      }
-                      className="input-field"
+                      onChange={(v) => setAttendanceSettings({ ...attendanceSettings, startTime: v })}
                     />
                     <p className="text-xs text-neutral-500 mt-1">Absensi dimulai</p>
                   </div>
@@ -142,13 +140,9 @@ export default function AdminSettingsPage() {
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
                       Waktu Berakhir (Tepat Waktu)
                     </label>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={attendanceSettings.endTime}
-                      onChange={(e) =>
-                        setAttendanceSettings({ ...attendanceSettings, endTime: e.target.value })
-                      }
-                      className="input-field"
+                      onChange={(v) => setAttendanceSettings({ ...attendanceSettings, endTime: v })}
                     />
                     <p className="text-xs text-neutral-500 mt-1">Batas hadir tepat waktu</p>
                   </div>
@@ -157,13 +151,9 @@ export default function AdminSettingsPage() {
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
                       Batas Terlambat
                     </label>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={attendanceSettings.lateThreshold}
-                      onChange={(e) =>
-                        setAttendanceSettings({ ...attendanceSettings, lateThreshold: e.target.value })
-                      }
-                      className="input-field"
+                      onChange={(v) => setAttendanceSettings({ ...attendanceSettings, lateThreshold: v })}
                     />
                     <p className="text-xs text-neutral-500 mt-1">Setelah ini dihitung terlambat</p>
                   </div>
@@ -194,13 +184,10 @@ export default function AdminSettingsPage() {
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
                       Waktu Tidak Hadir Otomatis
                     </label>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={attendanceSettings.autoMarkAbsentTime}
-                      onChange={(e) =>
-                        setAttendanceSettings({ ...attendanceSettings, autoMarkAbsentTime: e.target.value })
-                      }
-                      className="input-field max-w-xs"
+                      onChange={(v) => setAttendanceSettings({ ...attendanceSettings, autoMarkAbsentTime: v })}
+                      className="max-w-xs"
                     />
                   </div>
                 )}

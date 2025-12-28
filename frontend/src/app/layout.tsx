@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import AuthGate from '../components/AuthGate';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -30,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="id" className="scroll-smooth">
       <body className={`${inter.className} min-h-screen bg-neutral-50`}>
-        {children}
+        <AuthGate>{children}</AuthGate>
       </body>
     </html>
   );

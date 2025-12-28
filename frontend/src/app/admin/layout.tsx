@@ -3,33 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileBarChart, 
-  Settings, 
-  LogOut,
+import {
   Menu,
-  X,
-  User,
+  LogOut,
+  Settings,
   ChevronDown,
   Shield,
-  Camera,
-  Scan
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
-import { Home } from 'lucide-react';
-
-const adminNavItems = [
-  { href: '/', icon: Home, label: 'Beranda' },
-  { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/absen', icon: Scan, label: 'Mulai Absensi' },
-  { href: '/admin/students', icon: Users, label: 'Data Mahasiswa' },
-  { href: '/admin/face-register', icon: Camera, label: 'Registrasi Wajah' },
-  { href: '/admin/reports', icon: FileBarChart, label: 'Laporan' },
-  { href: '/admin/settings', icon: Settings, label: 'Pengaturan' },
-];
+import AdminSidebar from '@/components/AdminSidebar';
 
 export default function AdminLayout({
   children,
@@ -39,18 +22,18 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, isAuthenticated, isLoading } = useAuthStore();
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // Check authentication and admin role
+  // 🔐 Auth Guard
   useEffect(() => {
-    // Only check after initial load is complete
     if (!isLoading) {
       if (!isAuthenticated) {
-        router.push('/login');
+        router.replace('/login');
       } else if (user?.role !== 'admin') {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       }
     }
   }, [isAuthenticated, isLoading, user?.role, router]);
@@ -60,7 +43,6 @@ export default function AdminLayout({
     router.push('/login');
   };
 
-  // Show loading only when actually loading or when not authenticated
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
@@ -69,87 +51,43 @@ export default function AdminLayout({
     );
   }
 
-  // Don't render if not authenticated or not admin (will redirect in useEffect)
   if (!isAuthenticated || user?.role !== 'admin') {
     return null;
   }
 
   return (
     <div className="min-h-screen bg-neutral-50">
-      {/* Mobile Sidebar Overlay */}
+      {/* Overlay mobile */}
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           />
         )}
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-primary-900 z-50 transform transition-transform duration-300 lg:translate-x-0 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-primary-800">
-          <Link href="/admin" className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg text-white">Admin Panel</span>
-          </Link>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="lg:hidden text-primary-300 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="p-4 space-y-1">
-          {adminNavItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-white/10 text-white'
-                    : 'text-primary-300 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Logout Button */}
-        <div className="absolute bottom-4 left-4 right-4">
-          <button
-            onClick={handleLogout}
-            className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Keluar</span>
-          </button>
-        </div>
-      </aside>
+      <AdminSidebar
+        pathname={pathname}
+        isOpen={isSidebarOpen}
+        isCollapsed={isSidebarCollapsed}
+        onClose={() => setIsSidebarOpen(false)}
+        onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content */}
-      <div className="lg:ml-64">
+      <div
+        className={`transition-all duration-300 ${
+          isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        }`}
+      >
         {/* Top Navbar */}
         <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
-          {/* Mobile Menu Button */}
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="lg:hidden text-neutral-600 hover:text-neutral-900"
@@ -157,50 +95,50 @@ export default function AdminLayout({
             <Menu className="w-6 h-6" />
           </button>
 
-          {/* Page Title */}
           <h1 className="text-lg font-semibold text-primary-900">
-            {adminNavItems.find((item) => item.href === pathname)?.label || 'Admin Dashboard'}
+            Admin Panel
           </h1>
 
-          {/* User Profile */}
+          {/* Profile */}
           <div className="relative">
             <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center space-x-3 hover:bg-neutral-100 rounded-lg px-3 py-2 transition-colors"
+              onClick={() => setIsProfileOpen((v) => !v)}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-100"
             >
               <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
                 <Shield className="w-4 h-4 text-primary-600" />
               </div>
               <div className="hidden sm:block text-left">
-                <div className="text-sm font-medium text-neutral-900">{user?.name}</div>
+                <div className="text-sm font-medium text-neutral-900">
+                  {user?.name}
+                </div>
                 <div className="text-xs text-neutral-500">Administrator</div>
               </div>
               <ChevronDown className="w-4 h-4 text-neutral-400" />
             </button>
 
-            {/* Dropdown */}
             <AnimatePresence>
               {isProfileOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50"
+                  exit={{ opacity: 0, y: -8 }}
+                  className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-50"
                 >
                   <Link
                     href="/admin/settings"
                     onClick={() => setIsProfileOpen(false)}
-                    className="flex items-center space-x-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                    className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-neutral-100"
                   >
                     <Settings className="w-4 h-4" />
-                    <span>Pengaturan</span>
+                    Pengaturan
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>Keluar</span>
+                    Keluar
                   </button>
                 </motion.div>
               )}
@@ -208,10 +146,7 @@ export default function AdminLayout({
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="p-4 lg:p-6">
-          {children}
-        </main>
+        <main className="p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

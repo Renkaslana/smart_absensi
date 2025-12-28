@@ -129,16 +129,26 @@ export default function AdminDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
+    // Simple: just fetch after mount
+    const timer = setTimeout(() => {
+      console.log('⏳ [admin/page] Fetching dashboard after mount...');
+      fetchDashboardData();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const fetchDashboardData = async () => {
     setError(null);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      console.log('🔑 [admin/page] Token in localStorage:', !!token);
+      
       const response = await adminAPI.getDashboard();
+      console.log('✅ [admin/page] Dashboard data loaded');
       setData(response.data);
     } catch (err: any) {
-      console.error('Dashboard fetch error:', err);
+      console.error('❌ [admin/page] Dashboard fetch error:', err);
       setError(err.response?.data?.detail || 'Gagal memuat data dashboard');
     } finally {
       setIsLoading(false);
@@ -151,15 +161,15 @@ export default function AdminDashboardPage() {
     fetchDashboardData();
   };
 
-  // Chart data for daily attendance
+  // 1. Chart data for daily attendance - Pake Optional Chaining di tiap level
   const dailyChartData = {
-    labels: data?.attendance.daily_summary?.slice(0, 7).reverse().map(d => 
+    labels: data?.attendance?.daily_summary?.slice(0, 7).reverse().map(d => 
       format(new Date(d.date), 'dd MMM', { locale: id })
     ) || [],
     datasets: [
       {
         label: 'Kehadiran',
-        data: data?.attendance.daily_summary?.slice(0, 7).reverse().map(d => d.count) || [],
+        data: data?.attendance?.daily_summary?.slice(0, 7).reverse().map(d => d.count) || [],
         backgroundColor: 'rgba(59, 130, 246, 0.7)',
         borderColor: 'rgb(59, 130, 246)',
         borderWidth: 0,
@@ -169,12 +179,12 @@ export default function AdminDashboardPage() {
     ],
   };
 
-  // Chart data for class distribution
+  // 2. Chart data for class distribution
   const classChartData = {
-    labels: data?.attendance.by_kelas?.slice(0, 5).map(k => k.kelas) || [],
+    labels: data?.attendance?.by_kelas?.slice(0, 5).map(k => k.kelas) || [],
     datasets: [
       {
-        data: data?.attendance.by_kelas?.slice(0, 5).map(k => k.count) || [],
+        data: data?.attendance?.by_kelas?.slice(0, 5).map(k => k.count) || [],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)',
@@ -315,17 +325,17 @@ export default function AdminDashboardPage() {
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-500">Total Mahasiswa</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
-                {data?.overview.total_students || 0}
+                {data?.overview?.total_students ?? 0}
               </p>
               <div className="mt-3 flex items-center text-sm">
                 <div className="flex items-center text-green-600">
                   <UserCheck className="w-4 h-4 mr-1" />
-                  <span className="font-medium">{data?.overview.users_with_face || 0}</span>
+                  <span className="font-medium">{data?.overview?.users_with_face ?? 0}</span>
                 </div>
                 <span className="text-gray-400 mx-1">/</span>
                 <div className="flex items-center text-orange-600">
                   <UserX className="w-4 h-4 mr-1" />
-                  <span className="font-medium">{data?.overview.users_without_face || 0}</span>
+                  <span className="font-medium">{data?.overview?.users_without_face ?? 0}</span>
                 </div>
               </div>
             </div>
@@ -344,10 +354,10 @@ export default function AdminDashboardPage() {
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-500">Hadir Hari Ini</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
-                {data?.attendance.today_count || 0}
+                {data?.attendance?.today_count ?? 0}
               </p>
               <p className="mt-3 text-sm text-gray-500">
-                dari <span className="font-medium text-gray-700">{data?.attendance.total_students || 0}</span> mahasiswa
+                dari <span className="font-medium text-gray-700">{data?.attendance?.total_students ?? 0}</span> mahasiswa
               </p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-200">
@@ -365,12 +375,12 @@ export default function AdminDashboardPage() {
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-500">Tingkat Kehadiran</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
-                {data?.attendance.attendance_rate_today || 0}%
+                {data?.attendance?.attendance_rate_today ?? 0}%
               </p>
               <div className="mt-3 w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }}
-                  animate={{ width: `${data?.attendance.attendance_rate_today || 0}%` }}
+                  animate={{ width: `${data?.attendance?.attendance_rate_today ?? 0}%` }}
                   transition={{ duration: 1, ease: "easeOut" }}
                   className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full"
                 />
@@ -391,7 +401,7 @@ export default function AdminDashboardPage() {
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-500">Belum Registrasi Wajah</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
-                {data?.overview.users_without_face || 0}
+                {data?.overview?.users_without_face ?? 0}
               </p>
               <Link 
                 href="/admin/students?filter=no-face"
@@ -431,7 +441,7 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-72">
-            {data?.attendance.daily_summary && data.attendance.daily_summary.length > 0 ? (
+            {data?.attendance?.daily_summary?.length > 0 ? (
               <Bar data={dailyChartData} options={chartOptions} />
             ) : (
               <div className="h-full flex items-center justify-center text-gray-500">
@@ -456,7 +466,7 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-gray-500 mt-0.5">Kehadiran per kelas</p>
           </div>
           <div className="h-56 flex items-center justify-center">
-            {data?.attendance.by_kelas && data.attendance.by_kelas.length > 0 ? (
+            {data?.attendance?.by_kelas?.length > 0 ? (
               <Doughnut 
                 data={classChartData} 
                 options={{
@@ -515,7 +525,7 @@ export default function AdminDashboardPage() {
           {data?.recent_attendance && data.recent_attendance.length > 0 ? (
             <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
               <AnimatePresence>
-                {data.recent_attendance.slice(0, 8).map((record, index) => (
+                {data.recent_attendance?.slice(0, 8).map((record, index) => (
                   <motion.div 
                     key={record.id}
                     initial={{ opacity: 0, x: -10 }}

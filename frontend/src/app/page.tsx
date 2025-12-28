@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
-import { 
-  ShieldCheck, 
-  Users, 
-  Clock, 
-  BarChart3, 
-  Scan, 
+import { useEffect, useState } from 'react';
+import {
+  ShieldCheck,
+  Users,
+  Clock,
+  BarChart3,
+  Scan,
   ArrowRight,
   CheckCircle,
   Zap,
@@ -57,9 +58,112 @@ const benefits = [
   'Dashboard admin lengkap'
 ];
 
+function AnimatedNumber({ target, duration = 900, suffix = '' }: { target: number; duration?: number; suffix?: string }) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const loop = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const current = Math.round(t * target);
+      setValue(current);
+      if (t < 1) raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return <>{value}{suffix}</>;
+}
+
+function RadialProgress({
+  percent,
+  size = 96,
+  stroke = 10,
+  color = '#06b6d4',
+}: {
+  percent: number
+  size?: number
+  stroke?: number
+  color?: string
+}) {
+  const [value, setValue] = useState(0)
+
+  useEffect(() => {
+    let raf = 0
+    const start = performance.now()
+    const duration = 1000
+
+    const loop = (now: number) => {
+      const t = Math.min((now - start) / duration, 1)
+      setValue(Math.round(t * percent))
+      if (t < 1) raf = requestAnimationFrame(loop)
+    }
+
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [percent])
+
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const dash = c * (1 - value / 100)
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="block"
+    >
+      <defs>
+        <linearGradient id="gp" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#34d399" stopOpacity="0.95" />
+        </linearGradient>
+      </defs>
+
+      {/* Background */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke="#eef2ff"
+        strokeWidth={stroke}
+        fill="none"
+      />
+
+      {/* Progress */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke="url(#gp)"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={dash}
+        fill="none"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+
+      {/* CENTER LABEL */}
+      <text
+        x="50%"
+        y="50%"
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="fill-neutral-900 font-bold"
+        fontSize={size * 0.22}
+      >
+        {value}%
+      </text>
+    </svg>
+  )
+}
+
+
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuthStore();
-  
+
   return (
     <div className="min-h-screen">
       {/* Navigation */}
@@ -72,14 +176,14 @@ export default function LandingPage() {
               </div>
               <span className="font-bold text-xl text-primary-900">Smart Absensi</span>
             </div>
-            
+
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-neutral-600 hover:text-primary-600 transition-colors">Fitur</a>
               <a href="#benefits" className="text-neutral-600 hover:text-primary-600 transition-colors">Keunggulan</a>
               {isAuthenticated ? (
                 <>
-                  <Link 
-                    href={user?.role === 'admin' ? '/admin' : '/dashboard'} 
+                  <Link
+                    href={user?.role === 'admin' ? '/admin' : '/dashboard'}
                     className="btn-outline text-sm"
                   >
                     Dashboard
@@ -113,17 +217,17 @@ export default function LandingPage() {
         </div>
 
         {/* Floating Elements */}
-        <motion.div 
+        <motion.div
           className="absolute top-20 left-10 w-72 h-72 bg-secondary-500/20 rounded-full blur-3xl"
-          animate={{ 
+          animate={{
             scale: [1, 1.2, 1],
             opacity: [0.3, 0.5, 0.3]
           }}
           transition={{ duration: 8, repeat: Infinity }}
         />
-        <motion.div 
+        <motion.div
           className="absolute bottom-20 right-10 w-96 h-96 bg-primary-400/20 rounded-full blur-3xl"
-          animate={{ 
+          animate={{
             scale: [1.2, 1, 1.2],
             opacity: [0.4, 0.6, 0.4]
           }}
@@ -152,41 +256,77 @@ export default function LandingPage() {
                 Absensi Cerdas dengan{' '}
                 <span className="text-secondary-400">Face Recognition</span>
               </h1>
-              
+
               <p className="text-lg text-white/80 mb-8 max-w-xl">
-                Transformasi sistem kehadiran kampus Anda dengan teknologi pengenalan wajah 
+                Transformasi sistem kehadiran kampus Anda dengan teknologi pengenalan wajah
                 yang akurat, aman, dan mudah digunakan. Tidak perlu kartu, tidak perlu antri.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link 
+                <Link
                   href="/absen"
                   className="btn bg-white text-primary-900 hover:bg-neutral-100 px-8 py-3 text-lg font-semibold"
                 >
                   Mulai Absensi
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Link>
-                <Link 
+                {/* Admin Login Button 
+                <Link
                   href="/login"
                   className="btn bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm px-8 py-3 text-lg"
                 >
                   Masuk Admin
                 </Link>
+                */}
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-8 mt-12 pt-8 border-t border-white/20">
-                <div>
-                  <div className="text-3xl font-bold text-white">99.5%</div>
-                  <div className="text-white/60 text-sm">Akurasi</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-white">&lt;2s</div>
-                  <div className="text-white/60 text-sm">Waktu Proses</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-white">24/7</div>
-                  <div className="text-white/60 text-sm">Monitoring</div>
+              {/* Modern Stats */}
+              <div className="mt-12 pt-8 border-t border-white/10">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="flex items-center gap-4 p-4 bg-white/6 rounded-xl backdrop-blur-sm border border-white/5"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-md">
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-semibold text-white">99.5%</div>
+                      <div className="text-sm text-white/70">Akurasi</div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.18 }}
+                    className="flex items-center gap-4 p-4 bg-white/6 rounded-xl backdrop-blur-sm border border-white/5"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-white shadow-md">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-semibold text-white">&lt;2s</div>
+                      <div className="text-sm text-white/70">Waktu Proses</div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.26 }}
+                    className="flex items-center gap-4 p-4 bg-white/6 rounded-xl backdrop-blur-sm border border-white/5"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shadow-md">
+                      <BarChart3 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-semibold text-white">24/7</div>
+                      <div className="text-sm text-white/70">Monitoring</div>
+                    </div>
+                  </motion.div>
                 </div>
               </div>
             </motion.div>
@@ -207,7 +347,7 @@ export default function LandingPage() {
                       {/* Face Outline */}
                       <motion.div
                         className="w-40 h-52 border-4 border-secondary-500 rounded-[100px] relative"
-                        animate={{ 
+                        animate={{
                           borderColor: ['#0ea5e9', '#22c55e', '#0ea5e9']
                         }}
                         transition={{ duration: 2, repeat: Infinity }}
@@ -232,7 +372,7 @@ export default function LandingPage() {
                 </div>
 
                 {/* Floating Cards */}
-                <motion.div 
+                <motion.div
                   className="absolute -left-20 top-20 bg-white rounded-xl shadow-xl p-4 w-48"
                   animate={{ y: [0, -10, 0] }}
                   transition={{ duration: 3, repeat: Infinity }}
@@ -248,7 +388,7 @@ export default function LandingPage() {
                   </div>
                 </motion.div>
 
-                <motion.div 
+                <motion.div
                   className="absolute -right-10 bottom-32 bg-white rounded-xl shadow-xl p-4"
                   animate={{ y: [0, 10, 0] }}
                   transition={{ duration: 4, repeat: Infinity }}
@@ -317,7 +457,7 @@ export default function LandingPage() {
                 Mengapa Memilih Smart Absensi?
               </h2>
               <p className="text-lg text-neutral-600 mb-8">
-                Solusi absensi yang dikembangkan khusus untuk kebutuhan institusi pendidikan 
+                Solusi absensi yang dikembangkan khusus untuk kebutuhan institusi pendidikan
                 dengan standar keamanan dan akurasi tinggi.
               </p>
 
@@ -346,20 +486,74 @@ export default function LandingPage() {
               viewport={{ once: true }}
               className="relative"
             >
-              <div className="card p-8 shadow-xl">
+              <div className="card p-8 shadow-xl bg-white/90 backdrop-blur">
+                {/* Header */}
                 <div className="text-center mb-6">
-                  <div className="text-5xl font-bold text-gradient mb-2">2x</div>
-                  <div className="text-neutral-600">Lebih Cepat dari Absensi Manual</div>
+                  <div className="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-primary-50 to-secondary-50 flex items-center justify-center shadow-inner mb-3">
+                    <div className="text-4xl sm:text-5xl font-extrabold text-primary-700">
+                      2×
+                    </div>
+                  </div>
+                  <div className="text-sm font-medium text-neutral-700">
+                    Lebih Cepat Dibanding Absensi Manual
+                  </div>
                 </div>
+
+                {/* Metrics */}
                 <div className="grid grid-cols-2 gap-6 pt-6 border-t border-neutral-100">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">0%</div>
-                    <div className="text-sm text-neutral-500">Antrian</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">100%</div>
-                    <div className="text-sm text-neutral-500">Akurat</div>
-                  </div>
+                  {/* Antrian */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <div className="h-[140px] flex items-center justify-center mb-4">
+                      <div className="p-2 rounded-full bg-white/80 shadow-sm">
+                        <RadialProgress
+                          percent={6}
+                          size={110}
+                          stroke={10}
+                          color="#2563eb"
+                          label="6%"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 text-sm font-medium text-neutral-700">
+                      Antrian Berkurang
+                    </div>
+                    <div className="mt-2 text-xs text-neutral-500 max-w-xs leading-relaxed">
+                      Rata-rata waktu tunggu turun hingga 94% berkat proses absensi otomatis.
+                    </div>
+                  </motion.div>
+
+                  {/* Akurasi */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <div className="h-[140px] flex items-center justify-center mb-4">
+                      <div className="p-2 rounded-full bg-white/80 shadow-sm">
+                        <RadialProgress
+                          percent={99}
+                          size={110}
+                          stroke={10}
+                          color="#10b981"
+                          label="99%+"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 text-sm font-medium text-neutral-700">
+                      Akurasi Tinggi
+                    </div>
+                    <div className="mt-2 text-xs text-neutral-500 max-w-xs leading-relaxed">
+                      Model pengenalan wajah terlatih dengan tingkat akurasi hingga 99%+.
+                    </div>
+                  </motion.div>
                 </div>
               </div>
             </motion.div>
@@ -379,18 +573,18 @@ export default function LandingPage() {
               Siap Melakukan Absensi?
             </h2>
             <p className="text-lg text-white/80 mb-8 max-w-2xl mx-auto">
-              Mahasiswa dapat langsung melakukan absensi tanpa perlu login. 
+              Mahasiswa dapat langsung melakukan absensi tanpa perlu login.
               Cukup scan wajah dan kehadiran Anda langsung tercatat.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link 
+              <Link
                 href="/absen"
                 className="btn bg-white text-primary-900 hover:bg-neutral-100 px-8 py-3 text-lg font-semibold"
               >
                 Mulai Absensi Sekarang
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Link>
-              <Link 
+              <Link
                 href="/riwayat"
                 className="btn bg-white/10 text-white hover:bg-white/20 px-8 py-3 text-lg"
               >
@@ -412,7 +606,7 @@ export default function LandingPage() {
               <span className="font-bold text-xl">Smart Absensi</span>
             </div>
             <div className="text-neutral-400 text-sm">
-              © 2024 Smart Absensi. Sistem Absensi Berbasis Wajah.
+              © 2025 Smart Absensi. Sistem Absensi Berbasis Wajah.
             </div>
           </div>
         </div>

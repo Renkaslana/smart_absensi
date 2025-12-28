@@ -40,7 +40,8 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
-      isLoading: false,
+      // start in loading state until persistence rehydrates
+      isLoading: true,
 
       setAuth: (user: User, accessToken: string, refreshToken: string) => {
         // Store in localStorage

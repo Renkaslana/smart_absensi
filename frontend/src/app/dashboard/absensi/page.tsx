@@ -102,45 +102,42 @@ export default function AbsensiPage() {
       // Send to backend for face scan with base64 image
       const scanResponse = await faceAPI.scan(base64Image);
       
-      if (scanResponse.data.recognized && scanResponse.data.faces && scanResponse.data.faces.length > 0) {
-        // Get first recognized face
-        const recognizedFace = scanResponse.data.faces.find((f: any) => f.recognized);
+      if (scanResponse.data.recognized) {
+        // Face recognized
+        const recognizedData = scanResponse.data;
         
-        if (recognizedFace) {
-          setStatus('success');
-          setConfidence(recognizedFace.confidence / 100); // Backend returns percentage, convert to 0-1
-          setUserName(recognizedFace.name);
-          setMessage(`Selamat datang, ${recognizedFace.name}!`);
-          
-          // Submit attendance with image
-          const submitResponse = await absensiAPI.submit(base64Image);
-          
-          // Show timestamp if available
-          if (submitResponse.data?.absensi?.timestamp) {
-            const timestamp = new Date(submitResponse.data.absensi.timestamp);
-            const tanggal = timestamp.toLocaleDateString('id-ID', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            });
-            const waktu = timestamp.toLocaleTimeString('id-ID', { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              second: '2-digit'
-            });
-            setMessage(`Absensi berhasil! Tercatat pada ${tanggal} pukul ${waktu}`);
-          }
-        } else {
-          setStatus('failed');
-          setMessage(scanResponse.data.message || 'Wajah tidak dikenali');
+        setStatus('success');
+        setConfidence(recognizedData.confidence); // Already 0-1 from backend
+        setUserName(recognizedData.name || '');
+        setMessage(`Selamat datang, ${recognizedData.name}!`);
+        
+        // Submit attendance with image
+        const submitResponse = await absensiAPI.submit({ image_base64: imageSrc });
+        
+        // Show timestamp if available
+        if (submitResponse.data?.timestamp) {
+          const timestamp = new Date(submitResponse.data.timestamp);
+          const tanggal = timestamp.toLocaleDateString('id-ID', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          const waktu = timestamp.toLocaleTimeString('id-ID', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+          });
+          setMessage(`Absensi berhasil! Tercatat pada ${tanggal} pukul ${waktu}`);
         }
       } else {
         setStatus('failed');
-        setMessage(scanResponse.data.message || 'Wajah tidak dikenali');
+        setMessage('Wajah tidak dikenali. Pastikan wajah Anda sudah terdaftar.');
       }
     } catch (error: any) {
+      console.error('Attendance error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Terjadi kesalahan. Silakan coba lagi.';
       setStatus('failed');
-      setMessage(error.response?.data?.detail || 'Terjadi kesalahan. Silakan coba lagi.');
+      setMessage(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
     }
   }, []);
 

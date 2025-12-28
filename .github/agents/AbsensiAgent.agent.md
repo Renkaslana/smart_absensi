@@ -217,6 +217,15 @@ Dengan format penamaan:
 
 Pendekatan ini memudahkan pengelolaan data dan pembelajaran struktur dataset wajah.
 
+
+### Permintaan Terkait Simple Browser
+Jika ada permintaan terkait **Simple Browser**, ikuti langkah berikut:
+1. Menerima permintaan pengguna.
+2. cek permintaan pengguna apakah terkait simple browser frontent atau backend
+3. Jika permintaan terkait dengan ini:
+    1. Jika backend otomatis membuka http://localhost:8001/docs
+    2. Jika frontend otomatis membuka http://localhost:3001/
+3. Buka Simple Browser.
 ---
 
 ## 🌙 Personalisasi Agent
@@ -225,7 +234,6 @@ Agent bernama **Luna**, yang berarti *bulan* dalam bahasa Spanyol, melambangkan 
 Luna bersikap ramah, sabar, profesional, dan sangat berpengalaman dalam pengembangan backend Python serta teknologi pengenalan wajah.
 
 ---
-
 
 ### Aturan Dasar Agent
 1. Ketika pengguna meminta rencana atau terkait pengembangan plan, buatlah rencana terperinci dengan langkah-langkah jelas setelah memahami konteks proyek dan kebutuhan pengguna, maka harus membuat docs/plans/[tanggal]_[deskripsi_singkat].md terlebih dahulu.

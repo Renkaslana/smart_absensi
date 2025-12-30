@@ -15,104 +15,205 @@ import {
   MoveHorizontal
 } from 'lucide-react';
 import { faceAPI, absensiAPI } from '@/lib/api';
+import { mediaPipeService, type LivenessResult } from '@/lib/mediapipe';
 
-type ScanStatus = 'idle' | 'scanning' | 'liveness' | 'verifying' | 'success' | 'failed';
+type ScanStatus = 'idle' | 'initializing' | 'liveness' | 'scanning' | 'verifying' | 'success' | 'failed';
 
-interface LivenessChallenge {
-  type: 'blink' | 'head_movement';
-  instruction: string;
-  completed: boolean;
+interface LivenessProgress {
+  blinkCount: number;
+  headMovement: boolean;
+  isComplete: boolean;
 }
 
 export default function AbsensiPage() {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const livenessIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const [status, setStatus] = useState<ScanStatus>('idle');
   const [message, setMessage] = useState('Posisikan wajah Anda di dalam frame');
   const [confidence, setConfidence] = useState<number | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [userName, setUserName] = useState('');
-  const [livenessChallenge, setLivenessChallenge] = useState<LivenessChallenge | null>(null);
+  const [livenessProgress, setLivenessProgress] = useState<LivenessProgress>({
+    blinkCount: 0,
+    headMovement: false,
+    isComplete: false,
+  });
   const [scanningProgress, setScanningProgress] = useState(0);
 
-  // Video constraints
+  // Video constraints - high resolution for better face recognition
   const videoConstraints = {
-    width: 640,
-    height: 480,
+    width: 1920,
+    height: 1080,
     facingMode: 'user',
   };
 
-  // Simulate face detection (real implementation would use backend)
+  // Indonesian voice feedback
+  const speak = useCallback((text: string) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const indonesianVoice = voices.find(v => v.lang.includes('id'));
+      if (indonesianVoice) {
+        utterance.voice = indonesianVoice;
+      }
+      
+      window.speechSynthesis.speak(utterance);
+    }
+  }, []);
+
+  // Cleanup on unmount
   useEffect(() => {
-    if (status === 'scanning') {
-      const interval = setInterval(() => {
-        setScanningProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
+    return () => {
+      if (livenessIntervalRef.current) {
+        clearInterval(livenessIntervalRef.current);
+      }
+      mediaPipeService.resetLivenessState();
+    };
+  }, []);
+
+  // Start liveness detection
+  const startLivenessDetection = useCallback(async () => {
+    if (!webcamRef.current?.video) return;
+    
+    const videoElement = webcamRef.current.video;
+    
+    // Initialize MediaPipe
+    setStatus('initializing');
+    setMessage('Menginisialisasi deteksi wajah...');
+    
+    try {
+      await mediaPipeService.initialize();
+      mediaPipeService.resetLivenessState();
+      
+      setStatus('liveness');
+      setMessage('Kedipkan mata Anda 2 kali dan gerakkan kepala');
+      speak('Kedipkan mata Anda dua kali dan gerakkan kepala ke kiri atau kanan');
+      
+      // Start liveness detection loop
+      let checkCount = 0;
+      const maxChecks = 100; // ~10 seconds at 100ms interval
+      
+      livenessIntervalRef.current = setInterval(async () => {
+        checkCount++;
+        
+        if (checkCount > maxChecks) {
+          // Timeout
+          clearInterval(livenessIntervalRef.current!);
+          livenessIntervalRef.current = null;
+          setStatus('failed');
+          setMessage('Waktu habis. Verifikasi liveness gagal.');
+          speak('Waktu habis. Silakan coba lagi.');
+          return;
+        }
+        
+        try {
+          const result: LivenessResult = await mediaPipeService.detectLiveness(videoElement);
+          
+          // Update progress
+          setLivenessProgress({
+            blinkCount: mediaPipeService.getBlinkCount(),
+            headMovement: mediaPipeService.hasHeadMovement(),
+            isComplete: result.isLive,
+          });
+          
+          // Update progress bar
+          const progress = Math.min(
+            ((mediaPipeService.getBlinkCount() * 40) + (mediaPipeService.hasHeadMovement() ? 60 : 0)),
+            100
+          );
+          setScanningProgress(progress);
+          
+          // Voice feedback for blink
+          if (result.blinkDetected) {
+            speak(`Kedipan terdeteksi. ${mediaPipeService.getBlinkCount()} dari 2.`);
           }
-          return prev + 10;
-        });
-      }, 200);
-      return () => clearInterval(interval);
+          
+          // Voice feedback for head movement
+          if (result.headMovementDetected && !livenessProgress.headMovement) {
+            speak('Gerakan kepala terdeteksi.');
+          }
+          
+          // Check if liveness is complete
+          if (result.isLive) {
+            clearInterval(livenessIntervalRef.current!);
+            livenessIntervalRef.current = null;
+            
+            speak('Verifikasi berhasil. Memproses absensi.');
+            
+            // Proceed to face recognition
+            await processFaceRecognition();
+          }
+          
+        } catch (error) {
+          console.error('Liveness detection error:', error);
+        }
+      }, 100); // Check every 100ms
+      
+    } catch (error) {
+      console.error('Failed to initialize MediaPipe:', error);
+      setStatus('failed');
+      setMessage('Gagal menginisialisasi deteksi wajah. Coba lagi.');
     }
-  }, [status]);
+  }, [speak, livenessProgress.headMovement]);
 
-  // Handle capture and verification
-  const handleCapture = useCallback(async () => {
+  // Process face recognition after liveness check
+  const processFaceRecognition = useCallback(async () => {
     if (!webcamRef.current) return;
-
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) {
-      setMessage('Gagal mengambil gambar. Coba lagi.');
-      return;
-    }
-
+    
     setStatus('scanning');
     setMessage('Memindai wajah...');
     setScanningProgress(0);
 
+    // Capture at highest quality
+    const imageSrc = webcamRef.current.getScreenshot({
+      width: 1920,
+      height: 1080,
+    });
+    
+    if (!imageSrc) {
+      setStatus('failed');
+      setMessage('Gagal mengambil gambar. Coba lagi.');
+      speak('Gagal mengambil gambar. Silakan coba lagi.');
+      return;
+    }
+
     try {
-      // Step 1: Liveness detection
-      setStatus('liveness');
-      setMessage('Verifikasi keamanan...');
-      
-      // Generate random challenge
-      const challenges: LivenessChallenge[] = [
-        { type: 'blink', instruction: 'Kedipkan mata Anda 2 kali', completed: false },
-        { type: 'head_movement', instruction: 'Gerakkan kepala ke kanan lalu kiri', completed: false },
-      ];
-      const challenge = challenges[Math.floor(Math.random() * challenges.length)];
-      setLivenessChallenge(challenge);
-
-      // Wait for liveness (simulated - real implementation would track frames)
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      
-      // Mark challenge as completed
-      setLivenessChallenge({ ...challenge, completed: true });
-
-      // Step 2: Face verification
       setStatus('verifying');
       setMessage('Memverifikasi identitas...');
 
       // Extract base64 from imageSrc (remove data URL prefix)
       const base64Image = imageSrc.split(',')[1];
+      console.log('📸 Image captured, base64 length:', base64Image?.length);
 
-      // Send to backend for face scan with base64 image
+      // Send to backend for face scan with FaceNet
+      console.log('🔍 Sending to FaceNet recognition...');
       const scanResponse = await faceAPI.scan(base64Image);
+      console.log('✅ Face scan response:', scanResponse.data);
       
       if (scanResponse.data.recognized) {
         // Face recognized
         const recognizedData = scanResponse.data;
+        console.log('✓ Face recognized:', recognizedData.name, 'Confidence:', recognizedData.confidence);
         
         setStatus('success');
-        setConfidence(recognizedData.confidence); // Already 0-1 from backend
+        setConfidence(recognizedData.confidence);
         setUserName(recognizedData.name || '');
+        
+        // Indonesian voice greeting
+        speak(`Selamat datang, ${recognizedData.name}`);
         setMessage(`Selamat datang, ${recognizedData.name}!`);
         
-        // Submit attendance with base64 image (without data URL prefix)
+        // Submit attendance
+        console.log('📝 Submitting attendance...');
         const submitResponse = await absensiAPI.submit({ image_base64: base64Image });
+        console.log('✅ Attendance submitted:', submitResponse.data);
         
         // Show timestamp if available
         if (submitResponse.data?.timestamp) {
@@ -130,25 +231,52 @@ export default function AbsensiPage() {
           setMessage(`Absensi berhasil! Tercatat pada ${tanggal} pukul ${waktu}`);
         }
       } else {
+        console.log('❌ Face not recognized');
         setStatus('failed');
         setMessage('Wajah tidak dikenali. Pastikan wajah Anda sudah terdaftar.');
+        speak('Wajah tidak dikenali. Pastikan wajah Anda sudah terdaftar.');
       }
     } catch (error: any) {
-      console.error('Attendance error:', error);
+      console.error('❌ Attendance error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error data:', error.response?.data);
+      console.error('Error detail:', error.response?.data?.detail);
+      
       const errorMsg = error.response?.data?.detail || error.message || 'Terjadi kesalahan. Silakan coba lagi.';
+      console.error('Final error message:', errorMsg);
+      
       setStatus('failed');
       setMessage(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
+      speak('Terjadi kesalahan. Silakan coba lagi.');
     }
-  }, []);
+  }, [speak]);
+
+  // Handle capture and verification (start with liveness)
+  const handleCapture = useCallback(async () => {
+    if (!webcamRef.current) return;
+    
+    // Reset state
+    setLivenessProgress({ blinkCount: 0, headMovement: false, isComplete: false });
+    setScanningProgress(0);
+    
+    // Start liveness detection first
+    await startLivenessDetection();
+  }, [startLivenessDetection]);
 
   // Reset state
   const handleReset = () => {
+    if (livenessIntervalRef.current) {
+      clearInterval(livenessIntervalRef.current);
+      livenessIntervalRef.current = null;
+    }
+    mediaPipeService.resetLivenessState();
+    
     setStatus('idle');
     setMessage('Posisikan wajah Anda di dalam frame');
     setConfidence(null);
     setFaceDetected(false);
     setUserName('');
-    setLivenessChallenge(null);
+    setLivenessProgress({ blinkCount: 0, headMovement: false, isComplete: false });
     setScanningProgress(0);
   };
 
@@ -159,6 +287,7 @@ export default function AbsensiPage() {
         return 'bg-green-500';
       case 'failed':
         return 'bg-red-500';
+      case 'initializing':
       case 'scanning':
       case 'liveness':
       case 'verifying':
@@ -194,6 +323,7 @@ export default function AbsensiPage() {
             ref={webcamRef}
             audio={false}
             screenshotFormat="image/jpeg"
+            screenshotQuality={1.0}
             videoConstraints={videoConstraints}
             className="w-full h-full object-cover"
             mirrored
@@ -210,20 +340,20 @@ export default function AbsensiPage() {
             {/* Animated Face Frame */}
             <motion.div
               animate={{
-                borderColor: status === 'scanning' || status === 'liveness' || status === 'verifying'
+                borderColor: status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying'
                   ? ['#3B82F6', '#0EA5E9', '#3B82F6']
                   : status === 'success'
                   ? '#10B981'
                   : status === 'failed'
                   ? '#EF4444'
                   : '#9CA3AF',
-                boxShadow: status === 'scanning' || status === 'liveness' || status === 'verifying'
+                boxShadow: status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying'
                   ? ['0 0 20px rgba(59, 130, 246, 0.5)', '0 0 40px rgba(14, 165, 233, 0.5)', '0 0 20px rgba(59, 130, 246, 0.5)']
                   : 'none',
               }}
               transition={{
                 duration: 1.5,
-                repeat: status === 'scanning' || status === 'liveness' || status === 'verifying' ? Infinity : 0,
+                repeat: status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying' ? Infinity : 0,
               }}
               className="w-64 h-80 border-4 rounded-3xl relative"
             >
@@ -235,7 +365,7 @@ export default function AbsensiPage() {
 
               {/* Scanning Line Animation */}
               <AnimatePresence>
-                {(status === 'scanning' || status === 'liveness' || status === 'verifying') && (
+                {(status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying') && (
                   <motion.div
                     initial={{ top: 0 }}
                     animate={{ top: ['0%', '100%', '0%'] }}
@@ -247,9 +377,9 @@ export default function AbsensiPage() {
             </motion.div>
           </div>
 
-          {/* Liveness Challenge Overlay */}
+          {/* Liveness Progress Overlay */}
           <AnimatePresence>
-            {livenessChallenge && !livenessChallenge.completed && (
+            {status === 'liveness' && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -257,15 +387,41 @@ export default function AbsensiPage() {
                 className="absolute bottom-4 left-4 right-4"
               >
                 <div className="bg-black/70 backdrop-blur-sm rounded-xl p-4">
-                  <div className="flex items-center space-x-3">
-                    {livenessChallenge.type === 'blink' ? (
-                      <Eye className="w-8 h-8 text-primary-400" />
-                    ) : (
-                      <MoveHorizontal className="w-8 h-8 text-primary-400" />
-                    )}
-                    <div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
                       <p className="text-white font-medium">Verifikasi Keamanan</p>
-                      <p className="text-neutral-300 text-sm">{livenessChallenge.instruction}</p>
+                      <span className="text-primary-400 text-sm">{scanningProgress}%</span>
+                    </div>
+                    
+                    {/* Blink Progress */}
+                    <div className="flex items-center space-x-3">
+                      <Eye className={`w-5 h-5 ${livenessProgress.blinkCount >= 2 ? 'text-green-400' : 'text-neutral-400'}`} />
+                      <div className="flex-1">
+                        <p className="text-white text-sm">Kedipkan mata</p>
+                        <div className="flex space-x-1 mt-1">
+                          {[0, 1].map((i) => (
+                            <div 
+                              key={i}
+                              className={`w-4 h-1 rounded-full ${livenessProgress.blinkCount > i ? 'bg-green-400' : 'bg-neutral-600'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <span className="text-neutral-400 text-sm">{livenessProgress.blinkCount}/2</span>
+                    </div>
+                    
+                    {/* Head Movement Progress */}
+                    <div className="flex items-center space-x-3">
+                      <MoveHorizontal className={`w-5 h-5 ${livenessProgress.headMovement ? 'text-green-400' : 'text-neutral-400'}`} />
+                      <div className="flex-1">
+                        <p className="text-white text-sm">Gerakkan kepala</p>
+                        <div className="w-full h-1 bg-neutral-600 rounded-full mt-1">
+                          <div 
+                            className={`h-full rounded-full transition-all ${livenessProgress.headMovement ? 'bg-green-400 w-full' : 'w-0'}`}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-neutral-400 text-sm">{livenessProgress.headMovement ? '✓' : '-'}</span>
                     </div>
                   </div>
                 </div>
@@ -281,19 +437,24 @@ export default function AbsensiPage() {
               className={`${getStatusColor()} px-3 py-1.5 rounded-full flex items-center space-x-2`}
             >
               {status === 'idle' && <Camera className="w-4 h-4 text-white" />}
-              {(status === 'scanning' || status === 'liveness' || status === 'verifying') && (
+              {(status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying') && (
                 <Loader2 className="w-4 h-4 text-white animate-spin" />
               )}
               {status === 'success' && <CheckCircle className="w-4 h-4 text-white" />}
               {status === 'failed' && <XCircle className="w-4 h-4 text-white" />}
               <span className="text-white text-sm font-medium capitalize">
-                {status === 'idle' ? 'Siap' : status === 'liveness' ? 'Verifikasi' : status}
+                {status === 'idle' ? 'Siap' : 
+                 status === 'initializing' ? 'Memuat...' :
+                 status === 'liveness' ? 'Verifikasi' : 
+                 status === 'scanning' ? 'Memindai' :
+                 status === 'verifying' ? 'Memverifikasi' :
+                 status}
               </span>
             </motion.div>
           </div>
 
           {/* Progress Bar (during scanning) */}
-          {(status === 'scanning' || status === 'liveness' || status === 'verifying') && (
+          {(status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying') && (
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700">
               <motion.div
                 initial={{ width: 0 }}
@@ -344,7 +505,7 @@ export default function AbsensiPage() {
               </div>
             ) : (
               <div className="flex items-center justify-center space-x-2">
-                {(status === 'scanning' || status === 'liveness' || status === 'verifying') ? (
+                {(status === 'initializing' || status === 'scanning' || status === 'liveness' || status === 'verifying') ? (
                   <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
                 ) : (
                   <AlertCircle className="w-5 h-5 text-primary-600" />

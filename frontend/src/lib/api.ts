@@ -44,8 +44,16 @@ api.interceptors.request.use(
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('✅ API Response:', response.config.method?.toUpperCase(), response.config.url, 'Status:', response.status);
+    return response;
+  },
   async (error: AxiosError) => {
+    console.error('❌ API Error:', error.config?.method?.toUpperCase(), error.config?.url);
+    console.error('❌ Error status:', error.response?.status);
+    console.error('❌ Error data:', error.response?.data);
+    console.error('❌ Error message:', error.message);
+    
     if (error.response?.status === 401) {
       console.warn('⚠️ Got 401 - redirecting to login');
       // Don't clear tokens aggressively - just redirect

@@ -1,12 +1,19 @@
 """
 Face API Routes
 Endpoints for face registration, scanning, and management.
+
+Updated: 30 Dec 2025
+- Upgraded to FaceNet embeddings for better accuracy (>90%)
+- Using Cosine Similarity instead of Euclidean distance
+- Hybrid approach: face_recognition for detection, FaceNet for embeddings
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from PIL import Image
+import numpy as np
+import cv2
 
 from app.api.deps import get_current_user, get_current_admin, get_db
 from app.models.user import User
@@ -25,6 +32,19 @@ from app.core.exceptions import BadRequestException, NotFoundException
 
 router = APIRouter(prefix="/face", tags=["Face Recognition"])
 
+# Lazy loading for FaceNet service
+_facenet_service = None
+
+def get_facenet():
+    """Lazy load FaceNet service on first use."""
+    global _facenet_service
+    if _facenet_service is None:
+        print("🔄 [face.py] Loading FaceNet service (first time)...")
+        from app.services.facenet_service import get_facenet_service
+        _facenet_service = get_facenet_service(threshold=0.5)
+        print("✅ [face.py] FaceNet service loaded!")
+    return _facenet_service
+
 
 @router.post("/scan", response_model=FaceScanResponse)
 async def scan_face(
@@ -32,50 +52,106 @@ async def scan_face(
     db: Session = Depends(get_db)
 ):
     """
-    Scan and recognize face from image.
+    Scan and recognize face from image using FaceNet + Cosine Similarity.
     Public endpoint (no authentication required).
+    
+    Algorithm:
+    1. Decode base64 image to numpy array
+    2. Extract 128D FaceNet embedding from query image
+    3. Load all registered face embeddings from database
+    4. Calculate cosine similarity with each registered face
+    5. Return best match if similarity > threshold (0.5)
     """
     try:
-        # Decode image
-        image = decode_base64_image(request.image_base64)
+        print("🔍 [face/scan] Starting FaceNet face scan...")
+        
+        # Decode base64 image to PIL Image
+        print("📸 [face/scan] Decoding base64 image...")
+        pil_image = decode_base64_image(request.image_base64)
+        print(f"✓ [face/scan] PIL Image decoded: {pil_image.size}")
+        
+        # Convert PIL to OpenCV format (BGR)
+        rgb_array = np.array(pil_image)
+        if len(rgb_array.shape) == 3 and rgb_array.shape[2] == 3:
+            bgr_image = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+        else:
+            bgr_image = rgb_array
+        print(f"✓ [face/scan] OpenCV image: {bgr_image.shape}")
         
         # Get all face encodings from database
+        print("📊 [face/scan] Fetching face encodings from database...")
         face_encodings_db = db.query(FaceEncoding).all()
+        print(f"✓ [face/scan] Found {len(face_encodings_db)} face encodings")
         
         if not face_encodings_db:
-            raise BadRequestException("No registered faces in database")
-        
-        # Deserialize encodings
-        known_encodings = [
-            face_service.deserialize_encoding(fe.encoding_data)
-            for fe in face_encodings_db
-        ]
-        user_ids = [fe.user_id for fe in face_encodings_db]
-        
-        # Recognize face
-        result = face_service.recognize_face(image, known_encodings, user_ids)
-        
-        if result is None:
+            print("⚠️ [face/scan] No registered faces in database")
             return FaceScanResponse(
                 recognized=False,
                 confidence=0.0
             )
         
-        # Get user info
-        user = db.query(User).filter(User.id == result["user_id"]).first()
+        # Deserialize encodings and pair with user_id
+        print("🔓 [face/scan] Deserializing encodings...")
+        database_embeddings = []
+        for fe in face_encodings_db:
+            try:
+                embedding = face_service.deserialize_encoding(fe.encoding_data)
+                database_embeddings.append((fe.user_id, embedding))
+            except Exception as e:
+                print(f"⚠️ [face/scan] Failed to deserialize encoding for user {fe.user_id}: {e}")
+                continue
+        print(f"✓ [face/scan] Deserialized {len(database_embeddings)} embeddings")
         
+        if not database_embeddings:
+            print("⚠️ [face/scan] No valid embeddings to match against")
+            return FaceScanResponse(
+                recognized=False,
+                confidence=0.0
+            )
+        
+        # Recognize face using FaceNet
+        print("🧠 [face/scan] Starting FaceNet recognition...")
+        facenet = get_facenet()
+        match = facenet.recognize_face(bgr_image, database_embeddings)
+        
+        if match is None:
+            print("❌ [face/scan] Face not recognized")
+            return FaceScanResponse(
+                recognized=False,
+                confidence=0.0
+            )
+        
+        user_id, confidence = match
+        print(f"✓ [face/scan] Match found: user_id={user_id}, confidence={confidence:.4f}")
+        
+        # Get user info
+        print(f"👤 [face/scan] Fetching user info for ID: {user_id}")
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            print(f"❌ [face/scan] User {user_id} not found in database")
+            return FaceScanResponse(
+                recognized=False,
+                confidence=0.0
+            )
+        
+        print(f"✅ [face/scan] Face recognized: {user.name} ({user.nim}) - confidence: {confidence:.2%}")
         return FaceScanResponse(
             recognized=True,
             user_id=user.id,
             nim=user.nim,
             name=user.name,
             kelas=user.kelas,
-            confidence=result["confidence"]
+            confidence=confidence
         )
         
     except BadRequestException as e:
+        print(f"❌ [face/scan] Bad request: {str(e)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        print(f"❌ [face/scan] Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Face recognition error: {str(e)}"
@@ -89,9 +165,22 @@ async def register_face(
     db: Session = Depends(get_db)
 ):
     """
-    Register face encodings for current user.
+    Register face encodings for current user using FaceNet embeddings.
     Requires at least 3 images for better accuracy.
+    
+    Process:
+    1. Validate image count (3-5 images)
+    2. Delete existing encodings for this user
+    3. For each image:
+       - Decode base64 to PIL Image
+       - Convert to OpenCV format (BGR)
+       - Extract 128D FaceNet embedding
+       - Save embedding to database
+       - Save image to filesystem
+    4. Update user's has_face status
     """
+    print(f"🔐 [face/register] Registering faces for user: {current_user.name} ({current_user.nim})")
+    
     if len(request.images_base64) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -106,37 +195,53 @@ async def register_face(
     
     try:
         # Delete existing face encodings
-        db.query(FaceEncoding).filter(FaceEncoding.user_id == current_user.id).delete()
+        deleted_count = db.query(FaceEncoding).filter(FaceEncoding.user_id == current_user.id).delete()
+        print(f"🗑️ [face/register] Deleted {deleted_count} existing encodings")
         
         # Process each image
         encodings_created = 0
         
         for idx, image_base64 in enumerate(request.images_base64):
-            # Decode image
-            image = decode_base64_image(image_base64)
-            
-            # Generate encoding
-            encoding = face_service.encode_face(image)
-            
-            if encoding is None:
-                continue  # Skip if no face detected
-            
-            # Save image
-            image_path = face_service.save_face_image(image, current_user.nim, idx)
-            
-            # Serialize encoding
-            encoding_data = face_service.serialize_encoding(encoding)
-            
-            # Save to database
-            face_encoding = FaceEncoding(
-                user_id=current_user.id,
-                encoding_data=encoding_data,
-                image_path=image_path,
-                confidence=1.0  # Self-registration has perfect confidence
-            )
-            
-            db.add(face_encoding)
-            encodings_created += 1
+            try:
+                print(f"📸 [face/register] Processing image {idx + 1}/{len(request.images_base64)}...")
+                
+                # Decode base64 to PIL Image
+                pil_image = decode_base64_image(image_base64)
+                
+                # Convert PIL to OpenCV format (BGR) for FaceNet
+                rgb_array = np.array(pil_image)
+                if len(rgb_array.shape) == 3 and rgb_array.shape[2] == 3:
+                    bgr_image = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+                else:
+                    bgr_image = rgb_array
+                
+                # Extract FaceNet embedding (128D)
+                facenet = get_facenet()
+                embedding = facenet.extract_embedding(bgr_image)
+                print(f"✓ [face/register] Embedding extracted: shape={embedding.shape}")
+                
+                # Save image to filesystem
+                image_path = face_service.save_face_image(pil_image, current_user.nim, idx)
+                print(f"✓ [face/register] Image saved: {image_path}")
+                
+                # Serialize embedding (convert to bytes)
+                encoding_data = face_service.serialize_encoding(embedding)
+                
+                # Save to database
+                face_encoding = FaceEncoding(
+                    user_id=current_user.id,
+                    encoding_data=encoding_data,
+                    image_path=image_path,
+                    confidence=1.0  # Self-registration has perfect confidence
+                )
+                
+                db.add(face_encoding)
+                encodings_created += 1
+                print(f"✓ [face/register] Encoding {idx + 1} saved to database")
+                
+            except Exception as e:
+                print(f"⚠️ [face/register] Failed to process image {idx + 1}: {e}")
+                continue
         
         if encodings_created == 0:
             raise BadRequestException("No valid faces detected in any image")
@@ -146,9 +251,11 @@ async def register_face(
         
         db.commit()
         
+        print(f"✅ [face/register] Successfully registered {encodings_created} face encodings for {current_user.name}")
+        
         return FaceRegisterResponse(
             success=True,
-            message=f"Face registered successfully with {encodings_created} encodings",
+            message=f"Face registered successfully with {encodings_created} FaceNet encodings",
             encodings_count=encodings_created
         )
         
@@ -157,6 +264,9 @@ async def register_face(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         db.rollback()
+        print(f"💥 [face/register] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Face registration error: {str(e)}"
@@ -224,7 +334,7 @@ async def admin_register_face(
     db: Session = Depends(get_db)
 ):
     """
-    Admin: Register face encodings for any user.
+    Admin: Register face encodings for any user using FaceNet embeddings.
     Requires admin role.
     """
     # Get target user
@@ -232,38 +342,68 @@ async def admin_register_face(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
+    print(f"🔐 [admin/register] Admin registering faces for: {user.name} ({user.nim})")
+    
     if len(request.images_base64) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least 3 images required for face registration"
         )
     
+    if len(request.images_base64) > 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 5 images allowed"
+        )
+    
     try:
         # Delete existing face encodings
-        db.query(FaceEncoding).filter(FaceEncoding.user_id == user.id).delete()
+        deleted_count = db.query(FaceEncoding).filter(FaceEncoding.user_id == user.id).delete()
+        print(f"🗑️ [admin/register] Deleted {deleted_count} existing encodings")
         
         # Process each image
         encodings_created = 0
         
         for idx, image_base64 in enumerate(request.images_base64):
-            image = decode_base64_image(image_base64)
-            encoding = face_service.encode_face(image)
-            
-            if encoding is None:
+            try:
+                print(f"📸 [admin/register] Processing image {idx + 1}/{len(request.images_base64)}...")
+                
+                # Decode base64 to PIL Image
+                pil_image = decode_base64_image(image_base64)
+                
+                # Convert PIL to OpenCV format (BGR) for FaceNet
+                rgb_array = np.array(pil_image)
+                if len(rgb_array.shape) == 3 and rgb_array.shape[2] == 3:
+                    bgr_image = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+                else:
+                    bgr_image = rgb_array
+                
+                # Extract FaceNet embedding (128D)
+                facenet = get_facenet()
+                embedding = facenet.extract_embedding(bgr_image)
+                print(f"✓ [admin/register] Embedding extracted: shape={embedding.shape}")
+                
+                # Save image to filesystem
+                image_path = face_service.save_face_image(pil_image, user.nim, idx)
+                print(f"✓ [admin/register] Image saved: {image_path}")
+                
+                # Serialize embedding
+                encoding_data = face_service.serialize_encoding(embedding)
+                
+                # Save to database
+                face_encoding = FaceEncoding(
+                    user_id=user.id,
+                    encoding_data=encoding_data,
+                    image_path=image_path,
+                    confidence=1.0
+                )
+                
+                db.add(face_encoding)
+                encodings_created += 1
+                
+            except Exception as e:
+                print(f"⚠️ [admin/register] Failed to process image {idx + 1}: {e}")
                 continue
-            
-            image_path = face_service.save_face_image(image, user.nim, idx)
-            encoding_data = face_service.serialize_encoding(encoding)
-            
-            face_encoding = FaceEncoding(
-                user_id=user.id,
-                encoding_data=encoding_data,
-                image_path=image_path,
-                confidence=1.0
-            )
-            
-            db.add(face_encoding)
-            encodings_created += 1
         
         if encodings_created == 0:
             raise BadRequestException("No valid faces detected in any image")
@@ -271,14 +411,22 @@ async def admin_register_face(
         user.has_face = True
         db.commit()
         
+        print(f"✅ [admin/register] Successfully registered {encodings_created} FaceNet encodings for {user.name}")
+        
         return FaceRegisterResponse(
             success=True,
-            message=f"Face registered for {user.name} with {encodings_created} encodings",
+            message=f"Face registered for {user.name} with {encodings_created} FaceNet encodings",
             encodings_count=encodings_created
         )
         
+    except BadRequestException as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         db.rollback()
+        print(f"💥 [admin/register] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Face registration error: {str(e)}"

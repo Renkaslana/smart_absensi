@@ -11,9 +11,12 @@ alembic==1.13.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
-# Face Recognition (Sederhana & Powerful)
+# Face Recognition - FaceNet + Cosine Similarity
 face-recognition==1.3.0
-opencv-python==4.8.1.78
+keras-facenet==0.3.2
+tensorflow-cpu>=2.15.0
+scikit-learn>=1.3.0
+opencv-python-headless==4.8.1.78
 mediapipe==0.10.8
 numpy==1.24.3
 Pillow==10.1.0

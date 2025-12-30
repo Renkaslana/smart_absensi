@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -12,9 +12,12 @@ import {
   RefreshCw,
   Loader2,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  Play,
+  Square
 } from 'lucide-react';
 import { faceAPI } from '@/lib/api';
+import { speak, stopSpeaking, VOICE_PHRASES } from '@/lib/voice';
 
 type RegisterStatus = 'idle' | 'capturing' | 'uploading' | 'success' | 'failed';
 
@@ -24,26 +27,60 @@ interface CapturedImage {
   preview: string;
 }
 
+// Photo angle instructions in Indonesian
+const PHOTO_ANGLES = [
+  { instruction: 'Foto depan - Lihat langsung ke kamera', voice: 'Lihat langsung ke kamera' },
+  { instruction: 'Foto kiri - Putar kepala 30° ke kiri', voice: 'Putar kepala sedikit ke kiri' },
+  { instruction: 'Foto kanan - Putar kepala 30° ke kanan', voice: 'Putar kepala sedikit ke kanan' },
+  { instruction: 'Foto atas - Angkat dagu sedikit', voice: 'Angkat dagu sedikit' },
+  { instruction: 'Foto depan lagi - Kembali lihat ke kamera', voice: 'Kembali lihat langsung ke kamera' },
+];
+
+const MIN_PHOTOS = 3;
+const MAX_PHOTOS = 5;
+
 export default function FaceRegisterPage() {
   const webcamRef = useRef<Webcam>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoCaptureRef = useRef<NodeJS.Timeout | null>(null);
   
   const [status, setStatus] = useState<RegisterStatus>('idle');
   const [message, setMessage] = useState('Ambil minimal 3 foto wajah dari sudut berbeda');
   const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
   const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
+  const [isAutoCapture, setIsAutoCapture] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [currentAngle, setCurrentAngle] = useState(0);
 
+  // High resolution for better recognition
   const videoConstraints = {
-    width: 640,
-    height: 480,
+    width: 1920,
+    height: 1080,
     facingMode: 'user',
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (autoCaptureRef.current) {
+        clearInterval(autoCaptureRef.current);
+      }
+      stopSpeaking();
+    };
+  }, []);
 
   // Capture from webcam
   const handleCapture = useCallback(() => {
     if (!webcamRef.current) return;
+    if (capturedImages.length >= MAX_PHOTOS) {
+      setMessage(`Maksimal ${MAX_PHOTOS} foto sudah tercapai`);
+      return;
+    }
 
-    const imageSrc = webcamRef.current.getScreenshot();
+    const imageSrc = webcamRef.current.getScreenshot({
+      width: 1920,
+      height: 1080,
+    });
     if (!imageSrc) {
       setMessage('Gagal mengambil gambar. Coba lagi.');
       return;
@@ -56,8 +93,92 @@ export default function FaceRegisterPage() {
     };
 
     setCapturedImages((prev: CapturedImage[]) => [...prev, newImage]);
-    setMessage(`${capturedImages.length + 1} foto diambil. ${Math.max(0, 2 - capturedImages.length)} foto lagi diperlukan.`);
+    speak(VOICE_PHRASES.IMAGE_CAPTURED);
+    
+    const totalCaptured = capturedImages.length + 1;
+    const remaining = MIN_PHOTOS - totalCaptured;
+    
+    if (remaining > 0) {
+      setMessage(`✓ ${totalCaptured} foto diambil. ${remaining} foto lagi diperlukan.`);
+    } else {
+      setMessage(`✓ ${totalCaptured} foto diambil. Sudah cukup untuk registrasi!`);
+    }
+    
+    setCurrentAngle((prev) => (prev + 1) % PHOTO_ANGLES.length);
   }, [capturedImages.length]);
+
+  // Auto-capture mode
+  const startAutoCapture = useCallback(() => {
+    if (capturedImages.length >= MAX_PHOTOS) {
+      setMessage(`Sudah mencapai maksimal ${MAX_PHOTOS} foto`);
+      return;
+    }
+
+    setIsAutoCapture(true);
+    speak('Pengambilan foto otomatis akan dimulai');
+    setCountdown(3);
+
+    // Countdown
+    let count = 3;
+    const countdownInterval = setInterval(() => {
+      if (count > 0) {
+        setCountdown(count);
+        speak(['', 'satu', 'dua', 'tiga'][count]);
+        count--;
+      } else {
+        clearInterval(countdownInterval);
+        setCountdown(0);
+        speak('mulai');
+
+        // Start capturing
+        let photoIndex = capturedImages.length;
+        autoCaptureRef.current = setInterval(() => {
+          if (photoIndex >= MAX_PHOTOS) {
+            stopAutoCapture();
+            return;
+          }
+
+          // Voice instruction for angle
+          if (photoIndex < PHOTO_ANGLES.length) {
+            speak(PHOTO_ANGLES[photoIndex].voice);
+            setMessage(PHOTO_ANGLES[photoIndex].instruction);
+          }
+
+          // Capture after 1.5s delay
+          setTimeout(() => {
+            if (webcamRef.current) {
+              const imageSrc = webcamRef.current.getScreenshot({
+                width: 1920,
+                height: 1080,
+              });
+              if (imageSrc) {
+                const newImage: CapturedImage = {
+                  id: Date.now().toString(),
+                  data: imageSrc,
+                  preview: imageSrc,
+                };
+                setCapturedImages((prev) => [...prev, newImage]);
+                speak(VOICE_PHRASES.IMAGE_CAPTURED);
+              }
+            }
+          }, 1500);
+
+          photoIndex++;
+          setCurrentAngle(photoIndex % PHOTO_ANGLES.length);
+        }, 4000);
+      }
+    }, 1000);
+  }, [capturedImages.length]);
+
+  const stopAutoCapture = useCallback(() => {
+    if (autoCaptureRef.current) {
+      clearInterval(autoCaptureRef.current);
+      autoCaptureRef.current = null;
+    }
+    setIsAutoCapture(false);
+    setCountdown(0);
+    speak('Pengambilan foto selesai');
+  }, []);
 
   // Handle file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,13 +212,15 @@ export default function FaceRegisterPage() {
 
   // Submit for registration
   const handleSubmit = async () => {
-    if (capturedImages.length < 3) {
-      setMessage('Minimal 3 foto diperlukan untuk registrasi');
+    if (capturedImages.length < MIN_PHOTOS) {
+      setMessage(`Minimal ${MIN_PHOTOS} foto diperlukan untuk registrasi`);
+      speak(`Minimal ${MIN_PHOTOS} foto diperlukan`);
       return;
     }
 
     setStatus('uploading');
     setMessage('Mendaftarkan wajah...');
+    speak('Mendaftarkan wajah. Mohon tunggu.');
 
     try {
       // Convert base64 images to array of base64 strings
@@ -109,6 +232,7 @@ export default function FaceRegisterPage() {
       if (response.data.success) {
         setStatus('success');
         setMessage(`Wajah berhasil didaftarkan dengan ${response.data.encodings_count} encoding!`);
+        speak(VOICE_PHRASES.REGISTRATION_SUCCESS);
         setCapturedImages([]);
         
         // Refresh user data to update has_face status
@@ -118,20 +242,24 @@ export default function FaceRegisterPage() {
       } else {
         setStatus('failed');
         setMessage(response.data.message || 'Gagal mendaftarkan wajah');
+        speak(VOICE_PHRASES.REGISTRATION_FAILED);
       }
     } catch (error: any) {
       console.error('Face registration error:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Terjadi kesalahan. Silakan coba lagi.';
       setStatus('failed');
       setMessage(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
+      speak(VOICE_PHRASES.REGISTRATION_FAILED);
     }
   };
 
   // Reset state
   const handleReset = () => {
+    stopAutoCapture();
     setStatus('idle');
     setMessage('Ambil minimal 3 foto wajah dari sudut berbeda');
     setCapturedImages([]);
+    setCurrentAngle(0);
   };
 
   return (
@@ -199,6 +327,7 @@ export default function FaceRegisterPage() {
                   ref={webcamRef}
                   audio={false}
                   screenshotFormat="image/jpeg"
+                  screenshotQuality={1.0}
                   videoConstraints={videoConstraints}
                   className="w-full h-full object-cover"
                   mirrored
@@ -209,16 +338,66 @@ export default function FaceRegisterPage() {
                   <div className="w-48 h-64 border-2 border-dashed border-white/50 rounded-3xl" />
                 </div>
 
-                {/* Capture Button */}
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                {/* Countdown Overlay */}
+                {countdown > 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <motion.span
+                      key={countdown}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 1.5, opacity: 0 }}
+                      className="text-8xl font-bold text-white"
+                    >
+                      {countdown}
+                    </motion.span>
+                  </div>
+                )}
+
+                {/* Current Angle Instruction */}
+                {isAutoCapture && countdown === 0 && (
+                  <div className="absolute top-4 left-4 right-4">
+                    <div className="bg-black/70 backdrop-blur-sm rounded-lg px-4 py-2 text-center">
+                      <p className="text-white text-sm">{PHOTO_ANGLES[currentAngle]?.instruction}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Capture Buttons */}
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
+                  {/* Manual Capture */}
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={handleCapture}
-                    disabled={status === 'uploading'}
-                    className="w-16 h-16 rounded-full bg-white shadow-lg flex items-center justify-center"
+                    disabled={status === 'uploading' || isAutoCapture}
+                    className="w-16 h-16 rounded-full bg-white shadow-lg flex items-center justify-center disabled:opacity-50"
                   >
                     <div className="w-12 h-12 rounded-full bg-red-500" />
+                  </motion.button>
+
+                  {/* Auto Capture Toggle */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={isAutoCapture ? stopAutoCapture : startAutoCapture}
+                    disabled={status === 'uploading' || capturedImages.length >= MAX_PHOTOS}
+                    className={`px-4 py-2 rounded-full shadow-lg flex items-center space-x-2 ${
+                      isAutoCapture 
+                        ? 'bg-red-500 text-white' 
+                        : 'bg-primary-500 text-white'
+                    } disabled:opacity-50`}
+                  >
+                    {isAutoCapture ? (
+                      <>
+                        <Square className="w-4 h-4" />
+                        <span>Stop</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        <span>Auto</span>
+                      </>
+                    )}
                   </motion.button>
                 </div>
               </div>
@@ -263,7 +442,7 @@ export default function FaceRegisterPage() {
           className="card"
         >
           <h3 className="font-semibold text-primary-900 mb-4">
-            Foto yang Diambil ({capturedImages.length}/3+)
+            Foto yang Diambil ({capturedImages.length}/{MAX_PHOTOS})
           </h3>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
             {capturedImages.map((img, index) => (

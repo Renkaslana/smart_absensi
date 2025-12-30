@@ -9,11 +9,13 @@ import {
   Calendar,
   TrendingUp,
   Scan,
-  ArrowRight
+  ArrowRight,
+  Camera,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
-import { absensiAPI } from '@/lib/api';
+import { absensiAPI, faceAPI } from '@/lib/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -67,7 +69,8 @@ const item = {
 };
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
+  const [hasFace, setHasFace] = useState<boolean | null>(null);
   const [stats, setStats] = useState<Stats>({
     total_hadir: 0,
     total_terlambat: 0,
@@ -79,7 +82,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
+    checkFaceStatus();
   }, []);
+
+  const checkFaceStatus = async () => {
+    try {
+      const response = await faceAPI.getStatus();
+      const hasRegisteredFace = response.data.has_face;
+      setHasFace(hasRegisteredFace);
+      
+      // Update user store if different
+      if (user?.has_face !== hasRegisteredFace) {
+        updateUser({ has_face: hasRegisteredFace });
+      }
+    } catch (error) {
+      console.error('Failed to check face status:', error);
+      setHasFace(user?.has_face ?? false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -193,6 +213,38 @@ export default function DashboardPage() {
       animate="show"
       className="space-y-6"
     >
+      {/* Face Registration Alert - Show if user doesn't have face registered */}
+      {hasFace === false && (
+        <motion.div 
+          variants={item} 
+          className="bg-amber-50 border border-amber-200 rounded-xl p-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start space-x-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-amber-900">Wajah Belum Terdaftar</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  Anda perlu mendaftarkan wajah terlebih dahulu sebelum dapat melakukan absensi.
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboard/face-register">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="btn bg-amber-600 text-white hover:bg-amber-700 flex items-center space-x-2 whitespace-nowrap"
+              >
+                <Camera className="w-4 h-4" />
+                <span>Daftar Wajah Sekarang</span>
+              </motion.button>
+            </Link>
+          </div>
+        </motion.div>
+      )}
+
       {/* Welcome Section */}
       <motion.div variants={item} className="card">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -208,7 +260,8 @@ export default function DashboardPage() {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="btn-primary flex items-center space-x-2"
+              className={`btn-primary flex items-center space-x-2 ${hasFace === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={hasFace === false}
             >
               <Scan className="w-5 h-5" />
               <span>Absen Sekarang</span>

@@ -18,15 +18,19 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
+import { faceAPI } from '@/lib/api';
 
-const navItems = [
+// Navigation items - face-register will be conditionally shown
+const baseNavItems = [
   { href: '/', icon: Home, label: 'Beranda' },
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/absen', icon: Scan, label: 'Mulai Absensi' },
-  { href: '/dashboard/face-register', icon: Camera, label: 'Daftar Wajah' },
+  { href: '/dashboard/absensi', icon: Scan, label: 'Mulai Absensi' },
   { href: '/dashboard/history', icon: History, label: 'Riwayat' },
   { href: '/dashboard/settings', icon: Settings, label: 'Pengaturan' },
 ];
+
+// Face register item - only shown if user doesn't have face registered
+const faceRegisterItem = { href: '/dashboard/face-register', icon: Camera, label: 'Daftar Wajah' };
 
 export default function DashboardLayout({
   children,
@@ -39,6 +43,12 @@ export default function DashboardLayout({
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [hasFace, setHasFace] = useState<boolean | null>(null);
+
+  // Build navigation items based on face status
+  const navItems = hasFace === false 
+    ? [...baseNavItems.slice(0, 3), faceRegisterItem, ...baseNavItems.slice(3)]
+    : baseNavItems;
 
   // Check authentication
   useEffect(() => {
@@ -47,6 +57,38 @@ export default function DashboardLayout({
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Check face registration status
+  useEffect(() => {
+    const checkFaceStatus = async () => {
+      if (!isAuthenticated || !user) return;
+      
+      try {
+        // First check from user object
+        if (user.has_face !== undefined) {
+          setHasFace(user.has_face);
+        }
+        
+        // Then fetch fresh status from API
+        const response = await faceAPI.getStatus();
+        const hasRegisteredFace = response.data.has_face;
+        setHasFace(hasRegisteredFace);
+        
+        // Update user store if different
+        if (user.has_face !== hasRegisteredFace) {
+          // Update user in store
+          const { updateUser } = useAuthStore.getState();
+          updateUser({ has_face: hasRegisteredFace });
+        }
+      } catch (error) {
+        console.error('Failed to check face status:', error);
+        // Fallback to user object
+        setHasFace(user?.has_face ?? false);
+      }
+    };
+    
+    checkFaceStatus();
+  }, [isAuthenticated, user]);
 
   const handleLogout = () => {
     logout();

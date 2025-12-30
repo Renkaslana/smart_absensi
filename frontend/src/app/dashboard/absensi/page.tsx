@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,7 +15,9 @@ import {
   Eye,
   MoveHorizontal
 } from 'lucide-react';
+import Link from 'next/link';
 import { faceAPI, absensiAPI } from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { mediaPipeService, type LivenessResult } from '@/lib/mediapipe';
 
 type ScanStatus = 'idle' | 'initializing' | 'liveness' | 'scanning' | 'verifying' | 'success' | 'failed';
@@ -26,10 +29,14 @@ interface LivenessProgress {
 }
 
 export default function AbsensiPage() {
+  const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const livenessIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  const { user, updateUser } = useAuthStore();
+  const [hasFace, setHasFace] = useState<boolean | null>(null);
+  const [isCheckingFace, setIsCheckingFace] = useState(true);
   const [status, setStatus] = useState<ScanStatus>('idle');
   const [message, setMessage] = useState('Posisikan wajah Anda di dalam frame');
   const [confidence, setConfidence] = useState<number | null>(null);
@@ -41,6 +48,29 @@ export default function AbsensiPage() {
     isComplete: false,
   });
   const [scanningProgress, setScanningProgress] = useState(0);
+
+  // Check face registration status
+  useEffect(() => {
+    const checkFaceStatus = async () => {
+      try {
+        const response = await faceAPI.getStatus();
+        const hasRegisteredFace = response.data.has_face;
+        setHasFace(hasRegisteredFace);
+        
+        // Update user store if different
+        if (user?.has_face !== hasRegisteredFace) {
+          updateUser({ has_face: hasRegisteredFace });
+        }
+      } catch (error) {
+        console.error('Failed to check face status:', error);
+        setHasFace(user?.has_face ?? false);
+      } finally {
+        setIsCheckingFace(false);
+      }
+    };
+
+    checkFaceStatus();
+  }, [user, updateUser]);
 
   // Video constraints - high resolution for better face recognition
   const videoConstraints = {
@@ -296,6 +326,63 @@ export default function AbsensiPage() {
         return 'bg-neutral-400';
     }
   };
+
+  // Show loading while checking face status
+  if (isCheckingFace) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mb-4"></div>
+          <p className="text-neutral-600">Memeriksa status registrasi wajah...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show prompt to register face if user doesn't have one
+  if (hasFace === false) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <h1 className="text-2xl font-bold text-primary-900">Absensi Wajah</h1>
+          <p className="text-neutral-600 mt-1">
+            Posisikan wajah Anda di depan kamera untuk melakukan absensi
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="card text-center py-12"
+        >
+          <div className="w-20 h-20 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-6">
+            <AlertCircle className="w-10 h-10 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-neutral-900 mb-2">
+            Wajah Belum Terdaftar
+          </h2>
+          <p className="text-neutral-600 mb-6 max-w-md mx-auto">
+            Anda perlu mendaftarkan wajah terlebih dahulu sebelum dapat melakukan absensi.
+            Silakan klik tombol di bawah untuk mendaftarkan wajah Anda.
+          </p>
+          <Link href="/dashboard/face-register">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="btn-primary inline-flex items-center space-x-2"
+            >
+              <Camera className="w-5 h-5" />
+              <span>Daftar Wajah Sekarang</span>
+            </motion.button>
+          </Link>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

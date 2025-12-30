@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,9 +15,11 @@ import {
   Image as ImageIcon,
   Trash2,
   Play,
-  Square
+  Square,
+  ShieldCheck
 } from 'lucide-react';
 import { faceAPI } from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { speak, stopSpeaking, VOICE_PHRASES } from '@/lib/voice';
 
 type RegisterStatus = 'idle' | 'capturing' | 'uploading' | 'success' | 'failed';
@@ -40,10 +43,13 @@ const MIN_PHOTOS = 3;
 const MAX_PHOTOS = 5;
 
 export default function FaceRegisterPage() {
+  const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoCaptureRef = useRef<NodeJS.Timeout | null>(null);
   
+  const { user, updateUser } = useAuthStore();
+  const [isCheckingFace, setIsCheckingFace] = useState(true);
   const [status, setStatus] = useState<RegisterStatus>('idle');
   const [message, setMessage] = useState('Ambil minimal 3 foto wajah dari sudut berbeda');
   const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
@@ -58,6 +64,28 @@ export default function FaceRegisterPage() {
     height: 1080,
     facingMode: 'user',
   };
+
+  // Check if user already has face registered - redirect if yes
+  useEffect(() => {
+    const checkFaceStatus = async () => {
+      try {
+        const response = await faceAPI.getStatus();
+        if (response.data.has_face) {
+          // User already has face registered, redirect to dashboard
+          speak('Wajah Anda sudah terdaftar');
+          router.replace('/dashboard');
+          return;
+        }
+        setIsCheckingFace(false);
+      } catch (error) {
+        console.error('Failed to check face status:', error);
+        // If error checking, allow access
+        setIsCheckingFace(false);
+      }
+    };
+
+    checkFaceStatus();
+  }, [router]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -235,9 +263,12 @@ export default function FaceRegisterPage() {
         speak(VOICE_PHRASES.REGISTRATION_SUCCESS);
         setCapturedImages([]);
         
-        // Refresh user data to update has_face status
+        // Update user store to reflect face registration
+        updateUser({ has_face: true });
+        
+        // Redirect to dashboard after 2 seconds
         setTimeout(() => {
-          window.location.reload();
+          router.replace('/dashboard');
         }, 2000);
       } else {
         setStatus('failed');
@@ -261,6 +292,18 @@ export default function FaceRegisterPage() {
     setCapturedImages([]);
     setCurrentAngle(0);
   };
+
+  // Show loading while checking face status
+  if (isCheckingFace) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mb-4"></div>
+          <p className="text-neutral-600">Memeriksa status registrasi wajah...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

@@ -30,13 +30,38 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables ready")
     
-    # Sync has_face status from existing face folders
+    # Import dependencies
     from app.db.session import SessionLocal
     from app.models.user import User
+    from app.core.security import get_password_hash
     import os
     
     db = SessionLocal()
     try:
+        # === AUTO CREATE ADMIN USER ===
+        # Check if admin user exists, if not create one
+        admin = db.query(User).filter(User.nim == "admin").first()
+        if not admin:
+            print("📦 Creating default admin user...")
+            admin = User(
+                nim="admin",
+                name="Administrator",
+                email="admin@absensi.ac.id",
+                password_hash=get_password_hash("admin123"),
+                role="admin",
+                is_active=True
+            )
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+            print("✅ Admin user created!")
+            print("   NIM: admin")
+            print("   Password: admin123")
+            print("   ⚠️  Please change the password after first login!")
+        else:
+            print("✅ Admin user exists")
+        
+        # === SYNC FACE STATUS ===
         face_storage_path = settings.FACE_STORAGE_PATH
         if os.path.exists(face_storage_path):
             # Get all user folders (NIM folders)

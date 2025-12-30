@@ -91,19 +91,46 @@ async def scan_face(
             )
         
         # Deserialize encodings and pair with user_id
+        # Note: Old face_recognition encodings (128D) are NOT compatible with FaceNet (128D)
+        # They have different structures. Users with old encodings need to re-register.
         print("🔓 [face/scan] Deserializing encodings...")
         database_embeddings = []
+        incompatible_count = 0
+        
         for fe in face_encodings_db:
             try:
                 embedding = face_service.deserialize_encoding(fe.encoding_data)
+                
+                # Validate embedding shape (should be 128D for FaceNet)
+                if embedding.shape != (128,):
+                    print(f"⚠️ [face/scan] Incompatible encoding for user {fe.user_id}: shape={embedding.shape}")
+                    incompatible_count += 1
+                    continue
+                    
+                # Check if embedding is L2 normalized (FaceNet embeddings should be)
+                norm = np.linalg.norm(embedding)
+                if abs(norm - 1.0) > 0.1:  # Not properly normalized
+                    print(f"⚠️ [face/scan] Old format encoding for user {fe.user_id}: norm={norm:.4f}")
+                    incompatible_count += 1
+                    continue
+                    
                 database_embeddings.append((fe.user_id, embedding))
             except Exception as e:
                 print(f"⚠️ [face/scan] Failed to deserialize encoding for user {fe.user_id}: {e}")
                 continue
-        print(f"✓ [face/scan] Deserialized {len(database_embeddings)} embeddings")
+                
+        print(f"✓ [face/scan] Deserialized {len(database_embeddings)} valid FaceNet embeddings")
+        if incompatible_count > 0:
+            print(f"⚠️ [face/scan] {incompatible_count} old-format encodings skipped (need re-registration)")
         
         if not database_embeddings:
-            print("⚠️ [face/scan] No valid embeddings to match against")
+            print("⚠️ [face/scan] No valid FaceNet embeddings to match against")
+            # If there were old encodings but no valid ones, give specific message
+            if incompatible_count > 0:
+                raise BadRequestException(
+                    f"Semua {incompatible_count} wajah terdaftar menggunakan format lama. "
+                    "Silakan registrasi ulang wajah Anda untuk menggunakan sistem pengenalan baru."
+                )
             return FaceScanResponse(
                 recognized=False,
                 confidence=0.0

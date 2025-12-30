@@ -9,7 +9,7 @@
  */
 
 /**
- * Speak text in Indonesian voice
+ * Speak text in Indonesian voice with natural settings
  * @param text - Text to speak
  * @param options - Optional configuration
  */
@@ -37,8 +37,11 @@ export function speak(
     const setVoiceAndSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
       
-      // Try to find Indonesian voice
+      // Try to find Indonesian voice (prefer Google or Microsoft)
       const indonesianVoice = voices.find(voice =>
+        (voice.lang.includes('id') || voice.lang.includes('ID')) &&
+        (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+      ) || voices.find(voice =>
         voice.lang.includes('id') || 
         voice.lang.includes('ID') ||
         voice.name.toLowerCase().includes('indonesian')
@@ -51,11 +54,11 @@ export function speak(
         console.log('⚠️ Indonesian voice not found, using default');
       }
       
-      // Set language and options
+      // Set language and options with more natural settings
       utterance.lang = 'id-ID';
-      utterance.rate = options?.rate ?? 1.0;
-      utterance.pitch = options?.pitch ?? 1.0;
-      utterance.volume = options?.volume ?? 1.0;
+      utterance.rate = options?.rate ?? 0.9;  // Slightly slower for clarity
+      utterance.pitch = options?.pitch ?? 1.0; // Natural pitch
+      utterance.volume = options?.volume ?? 0.9; // Slightly softer
       
       // Optional callback when speech ends
       if (options?.onEnd) {

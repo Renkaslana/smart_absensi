@@ -48,25 +48,36 @@ export default function HistoryPage() {
   const fetchHistory = async () => {
     try {
       const response = await absensiAPI.getHistory({});
-      const rawHistory = response.data.history || [];
+      console.log('📋 History response:', response.data);
+      
+      // Backend returns PaginatedResponse with 'items' field
+      const rawHistory = response.data.items || response.data.history || [];
       
       // Convert timestamp to tanggal and waktu
       const formattedHistory = rawHistory.map((record: any) => {
-        let tanggal = record.tanggal;
+        let tanggal = record.tanggal || record.date;
         let waktu = record.waktu;
         
         // If timestamp exists, parse it
-        if (record.timestamp && !tanggal && !waktu) {
+        if (record.timestamp) {
           const date = new Date(record.timestamp);
           tanggal = date.toLocaleDateString('id-ID', { 
             year: 'numeric', 
-            month: '2-digit', 
-            day: '2-digit' 
+            month: 'long', 
+            day: 'numeric' 
           });
           waktu = date.toLocaleTimeString('id-ID', { 
             hour: '2-digit', 
             minute: '2-digit',
             second: '2-digit'
+          });
+        } else if (record.date && !tanggal) {
+          // Fallback to date field
+          const date = new Date(record.date);
+          tanggal = date.toLocaleDateString('id-ID', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
           });
         }
         
@@ -77,6 +88,7 @@ export default function HistoryPage() {
         };
       });
       
+      console.log('📋 Formatted history:', formattedHistory);
       setHistory(formattedHistory);
     } catch (error) {
       console.error('Error fetching history:', error);

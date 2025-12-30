@@ -111,19 +111,37 @@ class FaceRecognitionService:
         if len(known_encodings) == 0:
             return False, 0.0
         
-        # Compare faces
+        # Compare faces using face_recognition library
         face_distances = face_recognition.face_distance(known_encodings, face_encoding)
         
-        # Get best match
+        # Get best match (minimum distance)
         best_match_index = np.argmin(face_distances)
-        best_distance = face_distances[best_match_index]
+        best_distance = float(face_distances[best_match_index])
         
-        # Convert distance to confidence (0-1)
-        # Distance 0.0 = 100% match, distance 0.6 = 40% match, distance 1.0 = 0% match
-        confidence = max(0.0, 1.0 - best_distance)
+        # In face_recognition library:
+        # - Distance 0.0 = exact match (100%)
+        # - Distance 0.4 = good match (~85%)
+        # - Distance 0.5 = acceptable (~75%)
+        # - Distance 0.6 = threshold (~65%)
+        # - Distance > 0.6 = not a match
         
-        # Check if match is within tolerance
-        is_match = best_distance <= self.tolerance and confidence >= self.min_confidence
+        # Convert distance to confidence percentage for user-friendly display
+        # Using linear interpolation: distance 0 -> 100%, distance 0.6 -> 60%
+        # This provides a more intuitive confidence score for users
+        if best_distance <= 0.0:
+            confidence = 1.0
+        elif best_distance >= 0.8:
+            confidence = 0.4  # Minimum 40% for very poor matches
+        else:
+            # Linear scale: 100% at distance 0, 60% at distance 0.6
+            # Formula: confidence = 1.0 - (distance * 0.667)
+            # This maps: 0.0 -> 100%, 0.3 -> 80%, 0.45 -> 70%, 0.6 -> 60%
+            confidence = max(0.4, 1.0 - (best_distance * 0.67))
+        
+        # Match if distance is within tolerance
+        is_match = best_distance <= self.tolerance
+        
+        print(f"   📊 Distance: {best_distance:.4f}, Confidence: {confidence:.2%}, Tolerance: {self.tolerance}, Match: {is_match}")
         
         return is_match, confidence
     

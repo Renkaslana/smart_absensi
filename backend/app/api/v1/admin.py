@@ -3,7 +3,7 @@ Admin API Routes
 Endpoints for admin dashboard, user management, and reports.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import date
@@ -380,3 +380,98 @@ async def bulk_create_students(
         message=f"Created {created_count} students, skipped {skipped_count}",
         data={"created": created_count, "skipped": skipped_count, "errors": errors}
     )
+
+
+@router.post("/students/import-csv", response_model=ResponseBase)
+async def import_students_from_csv(
+    file: UploadFile = File(...),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Import students from CSV file.
+    CSV format: nim,nama (headers required)
+    Password will be set to same as NIM.
+    If NIM already exists, it will be skipped.
+    """
+    # Validate file type
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a CSV"
+        )
+    
+    try:
+        # Read CSV content
+        content = await file.read()
+        decoded = content.decode('utf-8')
+        
+        # Parse CSV
+        reader = csv.DictReader(io.StringIO(decoded))
+        
+        created_count = 0
+        skipped_count = 0
+        skipped_nims = []
+        
+        for row in reader:
+            # Get NIM and name from row (support different column names)
+            nim = row.get('nim') or row.get('NIM') or row.get('Nim') or ''
+            nama = row.get('nama') or row.get('name') or row.get('Nama') or row.get('NAME') or ''
+            kelas = row.get('kelas') or row.get('Kelas') or row.get('class') or None
+            
+            nim = str(nim).strip()
+            nama = str(nama).strip()
+            
+            if not nim or not nama:
+                continue
+            
+            # Check if NIM already exists
+            existing = db.query(User).filter(User.nim == nim).first()
+            if existing:
+                skipped_count += 1
+                skipped_nims.append(nim)
+                continue
+            
+            # Create user with password = NIM
+            try:
+                # Generate email from NIM (optional)
+                email = f"{nim}@mhs.harkatnegeri.ac.id"
+                
+                user = User(
+                    nim=nim,
+                    name=nama,
+                    email=email,
+                    password_hash=get_password_hash(nim),  # Password = NIM
+                    role="user",
+                    kelas=kelas,
+                    is_active=True,
+                    has_face=False
+                )
+                
+                db.add(user)
+                created_count += 1
+            except Exception as e:
+                print(f"⚠️ Error creating user {nim}: {e}")
+                skipped_count += 1
+                skipped_nims.append(nim)
+        
+        db.commit()
+        
+        print(f"✅ CSV Import: Created {created_count}, Skipped {skipped_count}")
+        
+        return ResponseBase(
+            success=True,
+            message=f"Berhasil import {created_count} mahasiswa, {skipped_count} dilewati (NIM sudah ada)",
+            data={
+                "created": created_count, 
+                "skipped": skipped_count,
+                "skipped_nims": skipped_nims[:10]  # Show first 10 only
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ CSV Import error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error parsing CSV: {str(e)}"
+        )

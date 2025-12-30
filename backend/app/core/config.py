@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     
     # Face Recognition
     FACE_DETECTION_MODEL: str = "hog"  # hog or cnn
-    FACE_RECOGNITION_TOLERANCE: float = 0.6
-    FACE_MIN_CONFIDENCE: float = 0.8
+    FACE_RECOGNITION_TOLERANCE: float = 0.55  # More lenient (0.4=strict, 0.6=standard)
+    FACE_MIN_CONFIDENCE: float = 0.60  # 60% confidence minimum
     MIN_FACE_IMAGES: int = 3
     
     # Liveness Detection

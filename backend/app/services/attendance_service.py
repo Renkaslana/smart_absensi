@@ -153,9 +153,11 @@ class AttendanceService:
         total = query.count()
         hadir = query.filter(Absensi.status == "hadir").count()
         terlambat = query.filter(Absensi.status == "terlambat").count()
+        tidak_hadir = query.filter(Absensi.status == "tidak_hadir").count()
         
-        # Calculate attendance rate
-        attendance_rate = (total / self._get_total_days(start_date, end_date)) * 100 if total > 0 else 0.0
+        # Calculate attendance rate based on (hadir + terlambat) / total
+        total_days = self._get_total_days(start_date, end_date)
+        attendance_rate = ((hadir + terlambat) / total_days * 100) if total_days > 0 else 0.0
         
         # Get streak
         current_streak = self._calculate_streak(db, user_id)
@@ -164,6 +166,7 @@ class AttendanceService:
             "total_attendance": total,
             "total_hadir": hadir,
             "total_terlambat": terlambat,
+            "total_tidak_hadir": tidak_hadir,
             "attendance_rate": round(attendance_rate, 2),
             "current_streak": current_streak
         }

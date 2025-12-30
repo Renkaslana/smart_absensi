@@ -47,6 +47,7 @@ class AbsensiStatsResponse(BaseModel):
     total_attendance: int
     total_hadir: int
     total_terlambat: int
+    total_tidak_hadir: int = 0
     attendance_rate: float
     current_streak: int
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, 
@@ -12,9 +12,11 @@ import {
   Save,
   Camera,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
+import { authApi } from '@/lib/api';
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -23,12 +25,24 @@ export default function SettingsPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
+    name: '',
+    email: '',
     phone: '',
   });
+
+  // Load user data on mount
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name || '',
+        email: user.email || '',
+        phone: '',
+      });
+    }
+  }, [user]);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -70,14 +84,27 @@ export default function SettingsPage() {
       return;
     }
 
+    if (passwordForm.newPassword.length < 6) {
+      setErrorMessage('Password minimal 6 karakter');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      // API call to change password
+      await authApi.changePassword({
+        current_password: passwordForm.currentPassword,
+        new_password: passwordForm.newPassword
+      });
       setSuccessMessage('Password berhasil diubah');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      setErrorMessage('Gagal mengubah password');
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Gagal mengubah password';
+      setErrorMessage(message);
       setTimeout(() => setErrorMessage(''), 3000);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -297,17 +324,22 @@ export default function SettingsPage() {
                 <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
                   <h4 className="text-sm font-medium text-primary-900 mb-2">Syarat Password:</h4>
                   <ul className="text-sm text-primary-700 space-y-1">
-                    <li>• Minimal 8 karakter</li>
-                    <li>• Mengandung huruf besar dan kecil</li>
-                    <li>• Mengandung angka</li>
-                    <li>• Mengandung karakter khusus (@, #, $, dll)</li>
+                    <li>• Minimal 6 karakter</li>
                   </ul>
                 </div>
 
                 <div className="pt-4">
-                  <button type="submit" className="btn-primary flex items-center space-x-2">
-                    <Lock className="w-4 h-4" />
-                    <span>Ubah Password</span>
+                  <button 
+                    type="submit" 
+                    disabled={isLoading}
+                    className="btn-primary flex items-center space-x-2"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Lock className="w-4 h-4" />
+                    )}
+                    <span>{isLoading ? 'Menyimpan...' : 'Ubah Password'}</span>
                   </button>
                 </div>
               </form>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Settings, 
@@ -16,25 +16,32 @@ import {
 
 import TimePicker from '../../../components/TimePicker';
 
+// Default settings
+const DEFAULT_ATTENDANCE_SETTINGS = {
+  startTime: '07:00',
+  endTime: '08:00',
+  lateThreshold: '08:15',
+  autoMarkAbsent: true,
+  autoMarkAbsentTime: '12:00',
+};
+
+const DEFAULT_FACE_SETTINGS = {
+  confidenceThreshold: 0.8,
+  livenessEnabled: true,
+  blinkDetection: true,
+  headMovement: true,
+  maxAttempts: 3,
+  minPhotos: 3,
+  maxPhotos: 5,
+};
+
 export default function AdminSettingsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState('attendance');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [attendanceSettings, setAttendanceSettings] = useState({
-    startTime: '07:00',
-    endTime: '08:00',
-    lateThreshold: '08:15',
-    autoMarkAbsent: true,
-    autoMarkAbsentTime: '12:00',
-  });
-
-  const [faceSettings, setFaceSettings] = useState({
-    confidenceThreshold: 0.8,
-    livenessEnabled: true,
-    blinkDetection: true,
-    headMovement: true,
-    maxAttempts: 3,
-  });
+  const [attendanceSettings, setAttendanceSettings] = useState(DEFAULT_ATTENDANCE_SETTINGS);
+  const [faceSettings, setFaceSettings] = useState(DEFAULT_FACE_SETTINGS);
 
   const [notificationSettings, setNotificationSettings] = useState({
     emailEnabled: true,
@@ -51,10 +58,50 @@ export default function AdminSettingsPage() {
     { id: 'security', label: 'Keamanan', icon: Shield },
   ];
 
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    setIsLoading(true);
+    try {
+      // Load attendance settings
+      const storedAttendance = localStorage.getItem('attendanceSettings');
+      if (storedAttendance) {
+        setAttendanceSettings({ ...DEFAULT_ATTENDANCE_SETTINGS, ...JSON.parse(storedAttendance) });
+      }
+
+      // Load face settings
+      const storedFace = localStorage.getItem('faceRecognitionSettings');
+      if (storedFace) {
+        setFaceSettings({ ...DEFAULT_FACE_SETTINGS, ...JSON.parse(storedFace) });
+      }
+
+      // Load notification settings
+      const storedNotification = localStorage.getItem('notificationSettings');
+      if (storedNotification) {
+        setNotificationSettings({ ...notificationSettings, ...JSON.parse(storedNotification) });
+      }
+
+      console.log('✅ Settings loaded from localStorage');
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const handleSave = async (section: string) => {
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Save to localStorage based on section
+      if (section === 'absensi') {
+        localStorage.setItem('attendanceSettings', JSON.stringify(attendanceSettings));
+        console.log('✅ Attendance settings saved:', attendanceSettings);
+      } else if (section === 'deteksi wajah') {
+        localStorage.setItem('faceRecognitionSettings', JSON.stringify(faceSettings));
+        console.log('✅ Face settings saved:', faceSettings);
+      } else if (section === 'notifikasi') {
+        localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+        console.log('✅ Notification settings saved:', notificationSettings);
+      }
+
       setSuccessMessage(`Pengaturan ${section} berhasil disimpan`);
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
@@ -307,6 +354,45 @@ export default function AdminSettingsPage() {
                   <p className="text-xs text-neutral-500 mt-1">
                     Jumlah maksimal percobaan absensi per sesi
                   </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Minimal Foto Wajah
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={faceSettings.minPhotos}
+                      onChange={(e) =>
+                        setFaceSettings({ ...faceSettings, minPhotos: parseInt(e.target.value) })
+                      }
+                      className="input-field"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Minimal foto saat registrasi wajah
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Maksimal Foto Wajah
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={faceSettings.maxPhotos}
+                      onChange={(e) =>
+                        setFaceSettings({ ...faceSettings, maxPhotos: parseInt(e.target.value) })
+                      }
+                      className="input-field"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Maksimal foto saat registrasi wajah
+                    </p>
+                  </div>
                 </div>
 
                 <div className="pt-4">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -19,7 +19,9 @@ import {
   XCircle,
   Camera,
   Lock,
-  Unlock
+  Unlock,
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import { adminAPI } from '@/lib/api';
 import StudentForm from './StudentForm';
@@ -50,6 +52,13 @@ export default function StudentsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailLocked, setEmailLocked] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Import CSV states
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const itemsPerPage = 10;
 
@@ -230,15 +239,26 @@ export default function StudentsPage() {
             Kelola data mahasiswa dan status registrasi wajah
           </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => openModal('add')}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Tambah Mahasiswa</span>
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowImportModal(true)}
+            className="btn-outline flex items-center space-x-2"
+          >
+            <Upload className="w-5 h-5" />
+            <span className="hidden sm:inline">Import CSV</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => openModal('add')}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Tambah Mahasiswa</span>
+          </motion.button>
+        </div>
       </motion.div>
 
       {/* Filters */}
@@ -653,6 +673,171 @@ export default function StudentsPage() {
                     isSubmitting={isSubmitting}
                     handleFormSubmit={handleFormSubmit}
                   />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Import CSV Modal */}
+      <AnimatePresence>
+        {showImportModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-6"
+            onClick={() => {
+              setShowImportModal(false);
+              setImportFile(null);
+              setImportResult(null);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-6 border-b border-neutral-200">
+                <h3 className="text-lg font-semibold text-primary-900 flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5" />
+                  Import Data Mahasiswa
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportFile(null);
+                    setImportResult(null);
+                  }}
+                  className="text-neutral-400 hover:text-neutral-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {importResult ? (
+                  <div className={`p-4 rounded-lg ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {importResult.success ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600" />
+                      )}
+                      <span className={`font-medium ${importResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                        {importResult.success ? 'Berhasil!' : 'Gagal'}
+                      </span>
+                    </div>
+                    <p className={`text-sm ${importResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                      {importResult.message}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowImportModal(false);
+                        setImportFile(null);
+                        setImportResult(null);
+                        fetchStudents();
+                      }}
+                      className="mt-4 w-full btn-primary"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-sm text-neutral-600 space-y-2">
+                      <p>Format CSV yang diterima:</p>
+                      <div className="bg-neutral-50 p-3 rounded-lg font-mono text-xs">
+                        <p className="text-primary-600">nim,nama</p>
+                        <p>232150XX,MAHASISWA 1</p>
+                        <p>232150XX,MAHASISWA 2</p>
+                      </div>
+                      <p className="text-neutral-500 text-xs">
+                        • Password default = NIM<br/>
+                        • NIM yang sudah ada akan dilewati
+                      </p>
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+                        importFile 
+                          ? 'border-primary-400 bg-primary-50' 
+                          : 'border-neutral-300 hover:border-primary-400 hover:bg-neutral-50'
+                      }`}
+                    >
+                      {importFile ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <FileSpreadsheet className="w-6 h-6 text-primary-600" />
+                          <span className="font-medium text-primary-700">{importFile.name}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 mx-auto text-neutral-400 mb-2" />
+                          <p className="text-neutral-600">Klik untuk pilih file CSV</p>
+                          <p className="text-xs text-neutral-400 mt-1">atau drag & drop file di sini</p>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setShowImportModal(false);
+                          setImportFile(null);
+                        }}
+                        className="flex-1 btn-outline"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!importFile) return;
+                          
+                          setIsImporting(true);
+                          try {
+                            const response = await adminAPI.importStudentsCSV(importFile);
+                            setImportResult({
+                              success: true,
+                              message: response.data.message
+                            });
+                          } catch (error: any) {
+                            setImportResult({
+                              success: false,
+                              message: error.response?.data?.detail || 'Terjadi kesalahan saat import'
+                            });
+                          } finally {
+                            setIsImporting(false);
+                          }
+                        }}
+                        disabled={!importFile || isImporting}
+                        className="flex-1 btn-primary flex items-center justify-center gap-2"
+                      >
+                        {isImporting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Mengimport...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            <span>Import</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             </motion.div>

@@ -242,6 +242,16 @@ export const adminAPI = {
     return api.post('/api/v1/admin/students/bulk', students);
   },
 
+  importStudentsCSV: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/api/v1/admin/students/import-csv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
   getStudentsDropdown: async () => {
     return api.get('/api/v1/admin/students', { params: { limit: 1000 } });
   },

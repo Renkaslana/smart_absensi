@@ -40,6 +40,8 @@ interface FaceSettings {
   blinkDetection: boolean;
   headMovement: boolean;
   maxAttempts: number;
+  minPhotos: number;
+  maxPhotos: number;
 }
 
 type RegistrationStatus = 'idle' | 'capturing' | 'processing' | 'success' | 'error' | 'liveness-check';
@@ -69,11 +71,14 @@ export default function AdminFaceRegisterPage() {
     blinkDetection: false,
     headMovement: false,
     maxAttempts: 3,
+    minPhotos: 3,
+    maxPhotos: 5,
   });
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [livenessStep, setLivenessStep] = useState<LivenessStep>('blink');
   const [livenessInstructions, setLivenessInstructions] = useState('');
   const [attemptCount, setAttemptCount] = useState(0);
+  const [livenessVerified, setLivenessVerified] = useState(false); // Track if liveness passed
 
   // Auto-capture feature
   const [isAutoCapture, setIsAutoCapture] = useState(false);
@@ -81,9 +86,10 @@ export default function AdminFaceRegisterPage() {
   const [currentPhotoAngle, setCurrentPhotoAngle] = useState(0);
   const autoCaptureTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const MIN_PHOTOS = 3;
-  const MAX_PHOTOS = 5;
-  const RECOMMENDED_PHOTOS = 5;
+  // Dynamic photo limits from settings
+  const MIN_PHOTOS = settings.minPhotos;
+  const MAX_PHOTOS = settings.maxPhotos;
+  const RECOMMENDED_PHOTOS = settings.maxPhotos;
 
   // Photo angles for progressive guidance (5 angles for 5 photos max)
   const PHOTO_ANGLES = [
@@ -141,7 +147,38 @@ export default function AdminFaceRegisterPage() {
     }
   }, []);
 
-  function startLivenessCheck() {
+  // performLivenessSteps defined as callback
+  const performLivenessSteps = useCallback((steps: LivenessStep[], currentIndex: number) => {
+    if (currentIndex >= steps.length) {
+      setStatus('idle');
+      setLivenessStep('complete');
+      setLivenessVerified(true); // Mark liveness as verified!
+      setMessage('✓ Verifikasi keamanan berhasil! Siap mengambil foto.');
+      speak('Verifikasi berhasil, siap mengambil foto');
+      return;
+    }
+
+    const currentStep = steps[currentIndex];
+    setLivenessStep(currentStep);
+
+    const instructions: Record<LivenessStep, string> = {
+      'blink': 'Kedipkan mata Anda dua kali',
+      'turn-left': 'Putar kepala ke kiri',
+      'turn-right': 'Putar kepala ke kanan',
+      'complete': 'Selesai'
+    };
+
+    const instruction = instructions[currentStep];
+    setLivenessInstructions(instruction);
+    speak(instruction);
+
+    // User has 4 seconds to perform action, then auto-proceed
+    setTimeout(() => {
+      performLivenessSteps(steps, currentIndex + 1);
+    }, 4000);
+  }, [speak]);
+
+  const startLivenessCheck = useCallback(() => {
     const steps: LivenessStep[] = [];
     if (settings.blinkDetection) steps.push('blink');
     if (settings.headMovement) {
@@ -150,6 +187,8 @@ export default function AdminFaceRegisterPage() {
     }
 
     if (steps.length === 0) {
+      // No liveness steps configured, mark as verified
+      setLivenessVerified(true);
       setStatus('idle');
       return;
     }
@@ -157,7 +196,7 @@ export default function AdminFaceRegisterPage() {
     setStatus('liveness-check');
     setLivenessStep(steps[0]);
     performLivenessSteps(steps, 0);
-  }
+  }, [settings.blinkDetection, settings.headMovement, performLivenessSteps]);
   
   // Cleanup auto-capture timer
   useEffect(() => {
@@ -187,17 +226,22 @@ export default function AdminFaceRegisterPage() {
   const fetchSettings = async () => {
     setIsLoadingSettings(true);
     try {
-      // Try to get from API, fallback to localStorage
+      // Get settings from localStorage (saved by admin settings page)
       const storedSettings = localStorage.getItem('faceRecognitionSettings');
       if (storedSettings) {
         const parsed = JSON.parse(storedSettings);
+        console.log('📋 Loaded face settings from localStorage:', parsed);
         setSettings({
-          confidenceThreshold: parsed.confidenceThreshold || 0.8,
-          livenessEnabled: parsed.livenessEnabled || false,
-          blinkDetection: parsed.blinkDetection || false,
-          headMovement: parsed.headMovement || false,
-          maxAttempts: parsed.maxAttempts || 3,
+          confidenceThreshold: parsed.confidenceThreshold ?? 0.8,
+          livenessEnabled: parsed.livenessEnabled ?? false,
+          blinkDetection: parsed.blinkDetection ?? false,
+          headMovement: parsed.headMovement ?? false,
+          maxAttempts: parsed.maxAttempts ?? 3,
+          minPhotos: parsed.minPhotos ?? 3,
+          maxPhotos: parsed.maxPhotos ?? 5,
         });
+      } else {
+        console.log('⚠️ No face settings in localStorage, using defaults');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -274,8 +318,8 @@ export default function AdminFaceRegisterPage() {
       return;
     }
 
-    // Liveness check before first photo
-    if (capturedImages.length === 0 && settings.livenessEnabled) {
+    // Liveness check before first photo (only if not yet verified)
+    if (capturedImages.length === 0 && settings.livenessEnabled && !livenessVerified) {
       startLivenessCheck();
       return;
     }
@@ -287,12 +331,13 @@ export default function AdminFaceRegisterPage() {
       return;
     }
 
+    // Skip this duplicate check - already handled above
     // If liveness detection enabled, do liveness check first
-    if (settings.livenessEnabled && capturedImages.length === 0) {
-      setStatus('liveness-check');
-      startLivenessCheck();
-      return;
-    }
+    // if (settings.livenessEnabled && capturedImages.length === 0) {
+    //   setStatus('liveness-check');
+    //   startLivenessCheck();
+    //   return;
+    // }
 
     const imageSrc = webcamRef.current.getScreenshot();
     if (imageSrc) {
@@ -323,7 +368,7 @@ export default function AdminFaceRegisterPage() {
       // Update current photo angle for next capture
       setCurrentPhotoAngle(prev => (prev + 1) % PHOTO_ANGLES.length);
     }
-  }, [selectedStudent, capturedImages.length, attemptCount, settings]);
+  }, [selectedStudent, capturedImages.length, attemptCount, settings, livenessVerified, speak, startLivenessCheck, MAX_PHOTOS, MIN_PHOTOS, RECOMMENDED_PHOTOS, PHOTO_ANGLES]);
 
   const startAutoCapture = useCallback(() => {
     if (!selectedStudent || capturedImages.length >= MAX_PHOTOS) {
@@ -331,8 +376,8 @@ export default function AdminFaceRegisterPage() {
       return;
     }
 
-    // Liveness check before starting auto-capture (only for first time)
-    if (capturedImages.length === 0 && settings.livenessEnabled) {
+    // Liveness check before starting auto-capture (only if not yet verified)
+    if (capturedImages.length === 0 && settings.livenessEnabled && !livenessVerified) {
       speak('Verifikasi keamanan akan dimulai');
       startLivenessCheck();
       // After liveness, will need to click Auto again
@@ -393,7 +438,7 @@ export default function AdminFaceRegisterPage() {
         autoCaptureTimerRef.current = captureInterval;
       }
     }, 1000);
-  }, [selectedStudent, capturedImages.length, settings.livenessEnabled, speak, webcamRef, startLivenessCheck]);
+  }, [selectedStudent, capturedImages.length, settings.livenessEnabled, livenessVerified, speak, webcamRef, startLivenessCheck, MAX_PHOTOS, PHOTO_ANGLES]);
 
   const stopAutoCapture = useCallback(() => {
     setIsAutoCapture(false);
@@ -404,37 +449,6 @@ export default function AdminFaceRegisterPage() {
     }
   }, []);
 
-
-  
-
-  const performLivenessSteps = (steps: LivenessStep[], currentIndex: number) => {
-    if (currentIndex >= steps.length) {
-      setStatus('idle');
-      setLivenessStep('complete');
-      setMessage('✓ Verifikasi keamanan berhasil! Siap mengambil foto.');
-      speak('Verifikasi berhasil, siap mengambil foto');
-      return;
-    }
-
-    const currentStep = steps[currentIndex];
-    setLivenessStep(currentStep);
-
-    const instructions: Record<LivenessStep, string> = {
-      'blink': 'Kedipkan mata Anda dua kali',
-      'turn-left': 'Putar kepala ke kiri',
-      'turn-right': 'Putar kepala ke kanan',
-      'complete': 'Selesai'
-    };
-
-    const instruction = instructions[currentStep];
-    setLivenessInstructions(instruction);
-    speak(instruction);
-
-    // User has 4 seconds to perform action
-    setTimeout(() => {
-      performLivenessSteps(steps, currentIndex + 1);
-    }, 4000);
-  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -468,6 +482,8 @@ export default function AdminFaceRegisterPage() {
     setStatus('idle');
     setMessage('');
     setAttemptCount(0);
+    setLivenessVerified(false); // Reset liveness verification
+    setLivenessStep('blink');
   };
 
   const handleRegister = async () => {
@@ -515,6 +531,8 @@ export default function AdminFaceRegisterPage() {
           setSelectedStudent(null);
           setStatus('idle');
           setMessage('');
+          setLivenessVerified(false); // Reset liveness for next student
+          setLivenessStep('blink');
           // Refresh list if showing only no-face
           if (filterMode === 'no-face') {
             fetchStudents();
@@ -569,6 +587,8 @@ export default function AdminFaceRegisterPage() {
     setStatus('idle');
     setMessage('');
     setAttemptCount(0);
+    setLivenessVerified(false); // Reset liveness when changing student
+    setLivenessStep('blink');
   };
 
   return (

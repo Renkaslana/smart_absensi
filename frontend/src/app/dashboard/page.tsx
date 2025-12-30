@@ -107,8 +107,58 @@ export default function DashboardPage() {
         absensiAPI.getHistory({ limit: 5 }),
         absensiAPI.getStats(),
       ]);
-      setRecentAbsensi(historyRes.data.history || []);
-      setStats(statsRes.data.stats || stats);
+      
+      console.log('📊 Dashboard - History response:', historyRes.data);
+      console.log('📊 Dashboard - Stats response:', statsRes.data);
+      
+      // Backend returns PaginatedResponse with 'items' field
+      const rawHistory = historyRes.data.items || historyRes.data.history || [];
+      
+      // Format history records
+      const formattedHistory = rawHistory.map((record: any) => {
+        let tanggal = record.tanggal;
+        let waktu = record.waktu;
+        
+        // Parse from timestamp or date
+        if (record.timestamp) {
+          const date = new Date(record.timestamp);
+          tanggal = date.toLocaleDateString('id-ID', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          waktu = date.toLocaleTimeString('id-ID', { 
+            hour: '2-digit', 
+            minute: '2-digit'
+          });
+        } else if (record.date) {
+          const date = new Date(record.date);
+          tanggal = date.toLocaleDateString('id-ID', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        }
+        
+        return {
+          ...record,
+          tanggal: tanggal || '-',
+          waktu: waktu || '-',
+        };
+      });
+      
+      setRecentAbsensi(formattedHistory);
+      
+      // Backend returns stats directly (not wrapped in .stats)
+      // Map field names: total_attendance -> tidak ada field ini di frontend
+      // attendance_rate -> persentase_kehadiran
+      const statsData = statsRes.data;
+      setStats({
+        total_hadir: statsData.total_hadir || 0,
+        total_terlambat: statsData.total_terlambat || 0,
+        total_tidak_hadir: statsData.total_tidak_hadir || 0,
+        persentase_kehadiran: statsData.attendance_rate || statsData.persentase_kehadiran || 0,
+      });
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -409,7 +459,9 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm text-neutral-600">
-                      {(record.confidence * 100).toFixed(1)}%
+                      {record.confidence != null 
+                        ? `${(record.confidence > 1 ? record.confidence : record.confidence * 100).toFixed(1)}%`
+                        : '-'}
                     </td>
                   </motion.tr>
                 ))}

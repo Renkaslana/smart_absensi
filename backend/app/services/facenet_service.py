@@ -18,6 +18,13 @@ import numpy as np
 import cv2
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
+import os
+import warnings
+
+# Suppress TensorFlow warnings before importing
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress INFO and WARNING
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +59,23 @@ class FaceNetService:
                                  Default 0.5 for better recall
         """
         if FaceNetService._model is None:
-            print("🔄 [FaceNet] Loading FaceNet model...")
+            print("🔄 [FaceNet] Loading FaceNet model (this may take 10-30 seconds on first run)...")
             try:
+                # Suppress keras warnings
+                import tensorflow as tf
+                tf.get_logger().setLevel('ERROR')
+                
                 from keras_facenet import FaceNet
                 FaceNetService._model = FaceNet()
                 print("✅ [FaceNet] Model loaded successfully!")
+            except ImportError as e:
+                print(f"❌ [FaceNet] Missing dependency: {e}")
+                print("   Please run: pip install keras-facenet tensorflow")
+                raise
             except Exception as e:
                 print(f"❌ [FaceNet] Failed to load model: {e}")
+                import traceback
+                traceback.print_exc()
                 raise
         
         self.model = FaceNetService._model

@@ -580,6 +580,22 @@ export default function AdminDashboardPage() {
           
           <div className="space-y-3">
             <Link 
+              href="/admin/check=wajah"
+              className="flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <Camera className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Mulai Absensi Wajah</p>
+                  <p className="text-sm text-gray-500">Buka kamera untuk pengecekan wajah otomatis</p>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+            </Link>
+
+            <Link 
               href="/admin/students"
               className="flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
             >

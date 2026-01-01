@@ -19,7 +19,7 @@ import {
 const adminNavItems = [
   { href: '/', icon: Home, label: 'Beranda' },
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/absen', icon: Scan, label: 'Mulai Absensi' },
+  { href: '/admin/check=wajah', icon: Camera, label: 'Mulai Absensi Wajah' },
   { href: '/admin/students', icon: Users, label: 'Data Mahasiswa' },
   { href: '/admin/face-register', icon: Camera, label: 'Registrasi Wajah' },
   { href: '/admin/reports', icon: FileBarChart, label: 'Laporan' },

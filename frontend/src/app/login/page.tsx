@@ -17,7 +17,7 @@ import { useAuthStore } from '@/lib/store';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, user, isLoading: authLoading } = useAuthStore();
+  const { isAuthenticated, user, isLoading: authLoading, validateSession } = useAuthStore();
   const setAuth = useAuthStore((state) => state.setAuth);
   
   const [formData, setFormData] = useState({
@@ -28,16 +28,38 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated AND session is valid
   useEffect(() => {
-    if (!authLoading && isAuthenticated && user) {
-      if (user.role === 'admin') {
-        router.push('/admin');
+    // Add small delay to avoid layout shift during SSR
+    if (authLoading) return;
+    
+    if (isAuthenticated && user) {
+      // Double-check session validity
+      const isValid = validateSession();
+      if (isValid) {
+        console.log('✅ User already authenticated, redirecting...');
+        if (user.role === 'admin') {
+          router.replace('/admin/dashboard');
+        } else {
+          router.replace('/dashboard');
+        }
       } else {
-        router.push('/dashboard');
+        console.warn('⚠️ Session invalid despite isAuthenticated=true');
       }
     }
-  }, [isAuthenticated, user, authLoading, router]);
+  }, [isAuthenticated, user, authLoading, router, validateSession]);
+
+  // Show loading state during auth check
+  if (authLoading) {
+    return (
+      <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-white animate-spin mx-auto" />
+          <p className="mt-4 text-white/80">Memeriksa autentikasi...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

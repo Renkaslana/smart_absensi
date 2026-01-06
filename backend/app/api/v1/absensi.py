@@ -84,13 +84,31 @@ async def submit_attendance(
             index=int(datetime.now().timestamp())
         )
         
-        # Submit attendance
-        attendance = attendance_service.submit_attendance(
+        # Submit attendance (returns tuple: attendance, is_duplicate)
+        result = attendance_service.submit_attendance(
             db=db,
             user_id=current_user.id,
             confidence=confidence,
             image_path=image_path
         )
+        
+        # Handle tuple return (attendance, is_duplicate)
+        if isinstance(result, tuple):
+            attendance, is_duplicate = result
+        else:
+            # Backward compatibility
+            attendance = result
+            is_duplicate = False
+        
+        # Format timestamp untuk pesan
+        waktu_absen = attendance.timestamp.strftime("%H:%M:%S")
+        tanggal_absen = attendance.timestamp.strftime("%d %B %Y")
+        
+        # Buat pesan informatif
+        if is_duplicate:
+            message = f"Anda sudah melakukan absensi hari ini pada pukul {waktu_absen}"
+        else:
+            message = f"Absensi berhasil dicatat pada pukul {waktu_absen}"
         
         return AbsensiResponse(
             id=attendance.id,
@@ -100,7 +118,9 @@ async def submit_attendance(
             date=attendance.date,
             timestamp=attendance.timestamp,
             status=attendance.status,
-            confidence=attendance.confidence
+            confidence=attendance.confidence,
+            already_submitted=is_duplicate,
+            message=message
         )
         
     except DuplicateException as e:

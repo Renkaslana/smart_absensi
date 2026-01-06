@@ -20,7 +20,7 @@ import { faceAPI, absensiAPI } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { mediaPipeService, type LivenessResult } from '@/lib/mediapipe';
 
-type ScanStatus = 'idle' | 'initializing' | 'liveness' | 'scanning' | 'verifying' | 'success' | 'failed';
+type ScanStatus = 'idle' | 'initializing' | 'liveness' | 'scanning' | 'verifying' | 'success' | 'warning' | 'failed';
 
 interface LivenessProgress {
   blinkCount: number;
@@ -245,20 +245,27 @@ export default function AbsensiPage() {
         const submitResponse = await absensiAPI.submit({ image_base64: base64Image });
         console.log('✅ Attendance submitted:', submitResponse.data);
         
-        // Show timestamp if available
-        if (submitResponse.data?.timestamp) {
-          const timestamp = new Date(submitResponse.data.timestamp);
-          const tanggal = timestamp.toLocaleDateString('id-ID', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          });
-          const waktu = timestamp.toLocaleTimeString('id-ID', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit'
-          });
-          setMessage(`Absensi berhasil! Tercatat pada ${tanggal} pukul ${waktu}`);
+        // Check if already submitted (warning)
+        if (submitResponse.data?.already_submitted) {
+          setStatus('warning');
+          setMessage(submitResponse.data.message || 'Anda sudah melakukan absensi hari ini');
+          speak(submitResponse.data.message || 'Anda sudah melakukan absensi hari ini');
+        } else {
+          // Show timestamp if available
+          if (submitResponse.data?.timestamp) {
+            const timestamp = new Date(submitResponse.data.timestamp);
+            const tanggal = timestamp.toLocaleDateString('id-ID', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            const waktu = timestamp.toLocaleTimeString('id-ID', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              second: '2-digit'
+            });
+            setMessage(`Absensi berhasil! Tercatat pada ${tanggal} pukul ${waktu}`);
+          }
         }
       } else {
         console.log('❌ Face not recognized');
@@ -315,6 +322,8 @@ export default function AbsensiPage() {
     switch (status) {
       case 'success':
         return 'bg-green-500';
+      case 'warning':
+        return 'bg-amber-500';
       case 'failed':
         return 'bg-red-500';
       case 'initializing':
@@ -528,6 +537,7 @@ export default function AbsensiPage() {
                 <Loader2 className="w-4 h-4 text-white animate-spin" />
               )}
               {status === 'success' && <CheckCircle className="w-4 h-4 text-white" />}
+              {status === 'warning' && <AlertCircle className="w-4 h-4 text-white" />}
               {status === 'failed' && <XCircle className="w-4 h-4 text-white" />}
               <span className="text-white text-sm font-medium capitalize">
                 {status === 'idle' ? 'Siap' : 
@@ -535,6 +545,7 @@ export default function AbsensiPage() {
                  status === 'liveness' ? 'Verifikasi' : 
                  status === 'scanning' ? 'Memindai' :
                  status === 'verifying' ? 'Memverifikasi' :
+                 status === 'warning' ? 'Sudah Absen' :
                  status}
               </span>
             </motion.div>
@@ -575,9 +586,27 @@ export default function AbsensiPage() {
                   <p className="text-xl font-bold text-green-600">{message}</p>
                   {confidence && (
                     <p className="text-neutral-500 mt-1">
-                      Tingkat kepercayaan: {(confidence * 100).toFixed(1)}%
+                      Confidence: {(confidence * 100).toFixed(1)}%
                     </p>
                   )}
+                </div>
+              </div>
+            ) : status === 'warning' ? (
+              <div className="space-y-4">
+                <div className="w-20 h-20 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
+                  <AlertCircle className="w-10 h-10 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-amber-600">Informasi Absensi</p>
+                  <p className="text-neutral-700 mt-2 font-medium">{message}</p>
+                  {confidence && (
+                    <p className="text-neutral-500 mt-2">
+                      Confidence: {(confidence * 100).toFixed(1)}%
+                    </p>
+                  )}
+                  <p className="text-amber-600 text-sm mt-3">
+                    ℹ️ Absensi Anda hari ini sudah tercatat dalam sistem
+                  </p>
                 </div>
               </div>
             ) : status === 'failed' ? (
@@ -618,7 +647,7 @@ export default function AbsensiPage() {
           </motion.button>
         )}
 
-        {(status === 'success' || status === 'failed') && (
+        {(status === 'success' || status === 'warning' || status === 'failed') && (
           <motion.button
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}

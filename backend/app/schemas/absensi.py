@@ -29,6 +29,8 @@ class AbsensiResponse(BaseModel):
     timestamp: datetime
     status: str
     confidence: Optional[float] = None
+    already_submitted: Optional[bool] = False  # Flag untuk warning duplikasi
+    message: Optional[str] = None  # Pesan informatif
     
     class Config:
         from_attributes = True

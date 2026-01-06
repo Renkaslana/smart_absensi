@@ -48,7 +48,9 @@ class AttendanceService:
         ).first()
         
         if existing:
-            raise DuplicateException("Attendance already submitted today")
+            # Return existing attendance with duplicate flag
+            # Will be handled by API layer to return appropriate response
+            return existing, True  # (attendance, is_duplicate)
         
         # Determine status based on time
         status = get_current_time_status()
@@ -67,7 +69,7 @@ class AttendanceService:
         db.commit()
         db.refresh(attendance)
         
-        return attendance
+        return attendance, False  # (attendance, is_duplicate)
     
     def get_user_attendance_history(
         self,

@@ -1,0 +1,147 @@
+# -----------------------------
+# General
+# -----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+*.tmp
+*.swp
+*~
+
+# -----------------------------
+# Python / Backend
+# -----------------------------
+# Virtual envs
+venv/
+.venv/
+env/
+ENV/
+
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/
+.pytype/
+.pytest_cache/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / coverage
+.coverage
+coverage/
+htmlcov/
+
+# IDE/editor
+.venv/
+/.vscode/
+.idea/
+
+# Python env files / secrets
+.env
+.env.*
+credentials.json
+secrets.json
+
+# Compiled extensions
+*.so
+
+# Jupyter
+.ipynb_checkpoints
+
+# -----------------------------
+# SQLite / database files
+# -----------------------------
+*.db
+*.sqlite
+*.sqlite3
+classattend.db
+
+# Backend-specific DB paths
+backend/**/*.db
+backend/**/*.sqlite
+database/**/*.db
+database/**/*.sqlite
+
+# -----------------------------
+# Face datasets, images and model weights
+# -----------------------------
+# Large image datasets and raw captured faces
+dataset_wajah/
+database/wajah_siswa/
+backend/database/wajah_siswa/
+
+# Trained model files (common extensions)
+*.pt
+*.pth
+*.h5
+*.ckpt
+
+# -----------------------------
+# Frontend (Node / Vite)
+# -----------------------------
+node_modules/
+dist/
+build/
+.vite/
+/.parcel-cache/
+/public/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files for frontend
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# -----------------------------
+# IDEs, editors and OS files
+# -----------------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.iml
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# -----------------------------
+# Misc / tooling
+# -----------------------------
+.cache/
+.turbo/
+.pnp/
+.pnp.js
+package-lock.json
+pnpm-lock.yaml
+
+# Keep lockfiles but ignore temporary lock files
+npm-debug.log*
+
+# -----------------------------
+# Optional: local-only files you may want to ignore
+# -----------------------------
+# local credentials, ssh keys, certificates
+*.pem
+*.key
+*.crt
+

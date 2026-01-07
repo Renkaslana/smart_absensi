@@ -72,9 +72,9 @@ const LandingPage: React.FC = () => {
                   Portal Login
                 </button>
               </Link>
-              <Link to="/register">
+              <Link to="/register/student">
                 <button className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:scale-105">
-                  Enroll Now
+                  Student Register
                 </button>
               </Link>
             </motion.div>

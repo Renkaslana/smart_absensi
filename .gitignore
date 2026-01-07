@@ -8,6 +8,7 @@ ehthumbs.db
 *.tmp
 *.swp
 *~
+dataset_wajah/
 
 # -----------------------------
 # Python / Backend

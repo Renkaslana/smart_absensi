@@ -6,6 +6,7 @@ Endpoints for admin dashboard, user management, and reports.
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import date
 from typing import Optional, List
 import io
@@ -16,9 +17,11 @@ from app.models.user import User
 from app.models.absensi import Absensi
 from app.models.face_encoding import FaceEncoding
 from app.schemas.user import UserResponse, UserCreate, UserUpdate, UserWithStats
-from app.schemas.absensi import AbsensiResponse
+from app.schemas.absensi import AbsensiResponse, AbsensiSubmitRequest
 from app.schemas.common import ResponseBase, PaginatedResponse
 from app.services.attendance_service import attendance_service
+from app.services.face_recognition_service import face_service
+from app.utils.image_processing import decode_base64_image
 from app.core.security import get_password_hash
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -276,42 +279,119 @@ async def get_attendance_report(
     Generate attendance report for date range.
     Supports JSON and CSV formats.
     """
-    # Get report data
-    report_data = attendance_service.get_attendance_report(
-        db=db,
-        start_date=start_date,
-        end_date=end_date,
-        kelas=kelas
-    )
-    
-    if format == "csv":
-        # Generate CSV
-        output = io.StringIO()
-        writer = csv.DictWriter(
-            output,
-            fieldnames=["date", "nim", "name", "kelas", "timestamp", "status", "confidence"]
+    try:
+        # Get report data
+        report_data = attendance_service.get_attendance_report(
+            db=db,
+            start_date=start_date,
+            end_date=end_date,
+            kelas=kelas
         )
-        writer.writeheader()
-        writer.writerows(report_data)
         
-        # Return CSV response
-        output.seek(0)
-        return StreamingResponse(
-            iter([output.getvalue()]),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=attendance_report_{start_date}_{end_date}.csv"
+        if format == "csv":
+            # Generate CSV
+            output = io.StringIO()
+            writer = csv.DictWriter(
+                output,
+                fieldnames=["date", "nim", "name", "kelas", "timestamp", "status", "confidence"]
+            )
+            writer.writeheader()
+            writer.writerows(report_data)
+            
+            # Return CSV response
+            output.seek(0)
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=attendance_report_{start_date}_{end_date}.csv"
+                }
+            )
+        
+        # Calculate overview statistics
+        total_students = db.query(User).filter(User.role == "user").count()
+        total_absensi = len(report_data)
+        
+        # Count by status
+        by_status = {}
+        for record in report_data:
+            status_val = record.get("status", "unknown")
+            by_status[status_val] = by_status.get(status_val, 0) + 1
+        
+        # Today's count
+        today = date.today()
+        today_count = sum(1 for r in report_data if r.get("date") == today.isoformat())
+        
+        # Calculate attendance rate for today
+        attendance_rate_today = round((today_count / total_students * 100) if total_students > 0 else 0, 1)
+        
+        # Count registered faces
+        try:
+            registered_faces = db.query(func.count(func.distinct(FaceEncoding.user_id))).scalar() or 0
+        except Exception as e:
+            print(f"Error counting registered faces: {e}")
+            registered_faces = 0
+        
+        # Unique users who attended
+        unique_users = len(set(r.get("nim") for r in report_data if r.get("nim")))
+        
+        # Student breakdown
+        student_attendance = {}
+        for record in report_data:
+            nim = record.get("nim")
+            if not nim:
+                continue
+                
+            if nim not in student_attendance:
+                student_attendance[nim] = {
+                    "name": record.get("name", "Unknown"),
+                    "nim": nim,
+                    "total_attendance": 0
+                }
+            student_attendance[nim]["total_attendance"] += 1
+        
+        # Calculate attendance rate per student
+        total_days = (end_date - start_date).days + 1
+        student_breakdown = [
+            {
+                **data,
+                "attendance_rate": round((data["total_attendance"] / total_days * 100) if total_days > 0 else 0, 1)
             }
+            for data in student_attendance.values()
+        ]
+        
+        # Sort by total attendance
+        student_breakdown.sort(key=lambda x: x["total_attendance"], reverse=True)
+        
+        # Return JSON with enhanced structure
+        return {
+            "period": {
+                "from": start_date.isoformat(),
+                "to": end_date.isoformat()
+            },
+            "overview": {
+                "total_students": total_students,
+                "total_absensi": total_absensi,
+                "today_count": today_count,
+                "attendance_rate_today": attendance_rate_today,
+                "registered_faces": registered_faces,
+                "unique_users": unique_users,
+                "by_status": by_status,
+                "daily_summary": [],
+                "weekly_summary": [],
+                "by_kelas": []
+            },
+            "student_breakdown": student_breakdown
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ Error generating report: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating report: {str(e)}"
         )
-    
-    # Return JSON
-    return {
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "kelas": kelas,
-        "total_records": len(report_data),
-        "data": report_data
-    }
 
 
 @router.get("/statistics/date")
@@ -474,4 +554,131 @@ async def import_students_from_csv(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error parsing CSV: {str(e)}"
+        )
+
+@router.post("/submit-attendance", response_model=AbsensiResponse)
+async def admin_submit_attendance(
+    request: AbsensiSubmitRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Submit attendance for a student via admin panel.
+    Admin scans student face and submits attendance on their behalf.
+    """
+    try:
+        # Decode image
+        image = decode_base64_image(request.image_base64)
+        
+        # Get face encoding from submitted image
+        face_encoding = face_service.encode_face(image)
+        
+        if face_encoding is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No face detected in image. Please try again."
+            )
+        
+        # Find matching user by comparing with all registered faces
+        from app.models.face_encoding import FaceEncoding
+        
+        face_encodings_db = db.query(FaceEncoding).all()
+        
+        if not face_encodings_db:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No registered faces in database"
+            )
+        
+        # Group encodings by user
+        user_encodings = {}
+        for fe in face_encodings_db:
+            if fe.user_id not in user_encodings:
+                user_encodings[fe.user_id] = []
+            try:
+                enc = face_service.deserialize_encoding(fe.encoding_data)
+                user_encodings[fe.user_id].append(enc)
+            except Exception as e:
+                print(f"Failed to deserialize encoding for user {fe.user_id}: {e}")
+                continue
+        
+        # Find best match
+        best_match_id = None
+        best_confidence = 0.0
+        
+        for user_id, encodings in user_encodings.items():
+            is_match, confidence = face_service.compare_faces(encodings, face_encoding)
+            if is_match and confidence > best_confidence:
+                best_confidence = confidence
+                best_match_id = user_id
+        
+        if best_match_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Face not recognized. Student not registered."
+            )
+        
+        # Get user info
+        user = db.query(User).filter(User.id == best_match_id).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Save attendance image
+        from datetime import datetime
+        image_path = face_service.save_face_image(
+            image,
+            user.nim,
+            index=int(datetime.now().timestamp())
+        )
+        
+        # Submit attendance for the recognized user
+        result = attendance_service.submit_attendance(
+            db=db,
+            user_id=user.id,
+            confidence=best_confidence,
+            image_path=image_path
+        )
+        
+        # Handle tuple return (attendance, is_duplicate)
+        if isinstance(result, tuple):
+            attendance, is_duplicate = result
+        else:
+            attendance = result
+            is_duplicate = False
+        
+        # Format timestamp
+        waktu_absen = attendance.timestamp.strftime("%H:%M:%S")
+        
+        # Buat pesan informatif
+        if is_duplicate:
+            message = f"{user.name} ({user.nim}) sudah absen hari ini pada pukul {waktu_absen}"
+        else:
+            message = f"Absensi berhasil dicatat pada pukul {waktu_absen}"
+        
+        return AbsensiResponse(
+            id=attendance.id,
+            user_id=attendance.user_id,
+            nim=user.nim,
+            name=user.name,
+            date=attendance.date,
+            timestamp=attendance.timestamp,
+            status=attendance.status,
+            confidence=attendance.confidence,
+            already_submitted=is_duplicate,
+            message=message
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Admin submit attendance error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error submitting attendance: {str(e)}"
         )

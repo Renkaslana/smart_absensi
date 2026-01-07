@@ -249,3 +249,14 @@ Luna bersikap ramah, sabar, profesional, dan sangat berpengalaman dalam pengemba
 4. Membuat database SQLite untuk menyimpan data mahasiswa, kelas, dan riwayat absensi.
 5. Menyediakan fitur manajemen kelas & mahasiswa dengan CRUD untuk kelas, mahasiswa, dan data wajah.
 6. Menyediakan laporan absensi yang dapat diakses dan diunduh oleh dosen/guru.
+
+
+### Instruksi Penting untuk Agent
+- Pastikan selalu commit perubahan kode ke GitHub setelah implementasi.
+- Gunakan struktur proyek yang telah ditentukan untuk menjaga konsistensi.
+- Selalu cek rencana docs/plans/[tanggal]_[fahrencenter_frontend_interface].md sebelum memulai implementasi.
+- Pastikan laporan implementasi ditulis di docs/reports/[tanggal]_[deskripsi_singkat].md setelah menyelesaikan tugas.
+- Setelah commit berikan ringkasan perubahan yang telah dilakukan.
+- Gunakan Simple Browser untuk membuka dokumentasi API backend di http://localhost:8001/docs
+- ketika ada permintaan dadakan seperti pemberitahuan kebutuhan update atau masalah terkait harap selesaikan masalah pengguna dengan yang terbaik bukan selesai dan langsung memberikan laporan dimana pengguna tidak menyukainya karena permintaannya tidak terpenuhi dengan baik.
+- DAN SELALU LAKUKAN COMMIT SEBELUM MEMBERIKAN LAPORAN!!!

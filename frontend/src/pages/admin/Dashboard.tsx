@@ -249,7 +249,7 @@ const AdminDashboard: React.FC = () => {
                     <div>
                       <p className="text-sm text-gray-600">Avg Confidence</p>
                       <p className="text-2xl font-bold text-green-900">
-                        {stats?.today_statistics.average_confidence.toFixed(1)}%
+                        {stats?.today_statistics?.average_confidence?.toFixed(1) || '0.0'}%
                       </p>
                     </div>
                   </div>

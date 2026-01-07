@@ -10,6 +10,7 @@ import AdminLayout from './components/layouts/AdminLayout';
 import LandingPage from './pages/public/LandingPage';
 import LoginPage from './pages/public/LoginPage';
 import RegisterPage from './pages/public/RegisterPage';
+import StudentRegistrationPage from './pages/public/StudentRegistrationPage';
 import PublicAbsenPage from './pages/public/PublicAbsenPage';
 
 // Student Pages
@@ -68,6 +69,10 @@ export const router = createBrowserRouter([
       {
         path: 'register',
         element: <RegisterPage />,
+      },
+      {
+        path: 'register/student',
+        element: <StudentRegistrationPage />,
       },
       {
         path: 'public/absen',

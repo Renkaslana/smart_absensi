@@ -4,13 +4,13 @@ import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, GraduationCap, ScanFace, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, ScanFace, Lock, User, Shield, ArrowLeft, Sparkles } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
 import toast from 'react-hot-toast';
 
 const loginSchema = z.object({
-  nim: z.string().min(3, 'NIM minimal 3 karakter'),
+  nim: z.string().min(3, 'Student ID minimal 3 karakter'),
   password: z.string().min(6, 'Password minimal 6 karakter'),
 });
 
@@ -32,44 +32,57 @@ const LoginPage: React.FC = () => {
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
+    const loadingToast = toast.loading('Authenticating...');
+    
     try {
-      const response = await authService.login(data.nim, data.password);
+      await login(data);  // Use authStore login which handles everything
+      const user = useAuthStore.getState().user;
       
-      if (response.access_token) {
-        await login(response.access_token, response.refresh_token || '');
-        toast.success(`Selamat datang kembali! 👋`);
-        
-        // Role-based redirect
-        const user = await authService.getCurrentUser();
-        if (user.role === 'admin') {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/dashboard');
-        }
+      toast.dismiss(loadingToast);
+      
+      // Role-based redirect
+      if (user && user.role === 'admin') {
+        toast.success(`Welcome back, Admin ${user.name}! 👑`, {
+          icon: '🎯',
+          duration: 3000,
+        });
+        navigate('/admin/dashboard');
+      } else if (user) {
+        toast.success(`Welcome back, ${user.name}! 🎓`, {
+          icon: '✨',
+          duration: 3000,
+        });
+        navigate('/dashboard');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Login gagal. Periksa kembali kredensial Anda.');
+      toast.dismiss(loadingToast);
+      
+      // Handle error message (might be string or array of validation errors)
+      let errorMessage = 'Login failed. Please check your credentials.';
+      if (error.response?.data) {
+        if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.map((err: any) => err.msg).join(', ');
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-primary-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Image */}
-      <div 
-        className="absolute inset-0 opacity-10"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1920&q=80)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
-
-      {/* Animated Blobs */}
-      <div className="absolute top-20 left-20 w-72 h-72 bg-primary-500/30 rounded-full blur-3xl animate-blob"></div>
-      <div className="absolute top-40 right-20 w-72 h-72 bg-purple-500/30 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
-      <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-pink-500/30 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative Elements */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-20 w-96 h-96 bg-primary-200/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-200/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-100/20 rounded-full blur-3xl"></div>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -77,6 +90,22 @@ const LoginPage: React.FC = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md relative z-10"
       >
+        {/* Back to Home */}
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-6"
+        >
+          <Link 
+            to="/" 
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-primary-600 font-medium transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Back to Home
+          </Link>
+        </motion.div>
+
         {/* Logo Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -84,17 +113,21 @@ const LoginPage: React.FC = () => {
           transition={{ delay: 0.2 }}
           className="text-center mb-8"
         >
-          <Link to="/" className="inline-flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-2xl">
-              <GraduationCap className="w-8 h-8 text-white" />
+          <Link to="/" className="inline-flex items-center gap-3 mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl flex items-center justify-center shadow-xl">
+              <GraduationCap className="w-9 h-9 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-2xl font-bold text-white">FahrenCenter</h1>
-              <p className="text-xs text-gray-400">International School</p>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">
+                FahrenCenter
+              </h1>
+              <p className="text-xs text-gray-600">International School</p>
             </div>
           </Link>
-          <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-          <p className="text-gray-400">Sign in to your student portal</p>
+          <div className="space-y-2">
+            <h2 className="text-4xl font-bold text-gray-900">Welcome Back</h2>
+            <p className="text-gray-600 text-lg">Sign in to your portal</p>
+          </div>
         </motion.div>
 
         {/* Login Form */}
@@ -102,73 +135,108 @@ const LoginPage: React.FC = () => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3 }}
-          className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20"
+          className="bg-white rounded-3xl p-8 shadow-2xl border border-gray-100"
         >
-          {/* Demo Credentials */}
-          <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
-            <p className="text-xs text-yellow-300 font-semibold mb-2">🔑 Demo Credentials:</p>
-            <div className="text-xs text-yellow-200 space-y-1">
-              <p>Admin: <span className="font-mono bg-black/20 px-2 py-0.5 rounded">admin</span> / <span className="font-mono bg-black/20 px-2 py-0.5 rounded">admin123</span></p>
-              <p>Student: <span className="font-mono bg-black/20 px-2 py-0.5 rounded">23215030</span> / <span className="font-mono bg-black/20 px-2 py-0.5 rounded">password123</span></p>
+          {/* Demo Credentials Banner */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Shield className="w-5 h-5 text-yellow-900" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-yellow-900 mb-2">🔐 Demo Credentials</p>
+                <div className="space-y-2 text-xs text-yellow-800">
+                  <div className="flex items-center justify-between p-2 bg-white/60 rounded-lg">
+                    <span className="font-semibold">Admin:</span>
+                    <div className="flex gap-2">
+                      <code className="px-2 py-1 bg-yellow-100 rounded">admin</code>
+                      <span>/</span>
+                      <code className="px-2 py-1 bg-yellow-100 rounded">admin123</code>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-white/60 rounded-lg">
+                    <span className="font-semibold">Student:</span>
+                    <div className="flex gap-2">
+                      <code className="px-2 py-1 bg-blue-100 rounded">23215030</code>
+                      <span>/</span>
+                      <code className="px-2 py-1 bg-blue-100 rounded">password123</code>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* NIM Input */}
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Student ID (NIM)
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Student ID / Username
               </label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary-600 transition-colors" />
                 <input
                   {...register('nim')}
                   type="text"
-                  placeholder="Enter your student ID"
-                  className="w-full pl-12 pr-4 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  placeholder="Enter your ID or username"
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:bg-white transition-all"
                 />
               </div>
               {errors.nim && (
-                <p className="mt-1.5 text-sm text-red-400">{errors.nim.message}</p>
+                <motion.p 
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-sm text-red-600 flex items-center gap-1"
+                >
+                  <span className="text-xs">⚠️</span>
+                  {errors.nim.message}
+                </motion.p>
               )}
             </div>
 
             {/* Password Input */}
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Password
               </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary-600 transition-colors" />
                 <input
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  className="w-full pl-12 pr-12 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:bg-white transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary-600 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1.5 text-sm text-red-400">{errors.password.message}</p>
+                <motion.p 
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-sm text-red-600 flex items-center gap-1"
+                >
+                  <span className="text-xs">⚠️</span>
+                  {errors.password.message}
+                </motion.p>
               )}
             </div>
 
             {/* Remember & Forgot */}
             <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 rounded border-white/20 bg-white/10 text-primary-600 focus:ring-2 focus:ring-primary-500"
+                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-2 focus:ring-primary-500 cursor-pointer"
                 />
-                <span className="text-gray-300">Remember me</span>
+                <span className="text-gray-600 group-hover:text-gray-900 transition-colors">Remember me</span>
               </label>
-              <a href="#" className="text-primary-400 hover:text-primary-300 font-semibold transition-colors">
+              <a href="#" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
                 Forgot password?
               </a>
             </div>
@@ -179,17 +247,17 @@ const LoginPage: React.FC = () => {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
             >
               {isLoading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Signing in...
+                  Authenticating...
                 </>
               ) : (
                 <>
-                  <ScanFace className="w-5 h-5" />
-                  Sign In
+                  <ScanFace className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  Sign In to Portal
                 </>
               )}
             </motion.button>
@@ -198,45 +266,43 @@ const LoginPage: React.FC = () => {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20"></div>
+              <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-transparent text-gray-400">or</span>
+              <span className="px-4 bg-white text-gray-500">or</span>
             </div>
           </div>
 
-          {/* Register Link */}
-          <div className="text-center">
-            <p className="text-gray-400">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary-400 hover:text-primary-300 font-semibold transition-colors">
-                Create Account
+          {/* Additional Links */}
+          <div className="space-y-3">
+            {/* Register Link */}
+            <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
+              <p className="text-gray-700 mb-2">
+                Don't have an account?
+              </p>
+              <Link to="/register">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-2.5 bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white font-semibold rounded-xl transition-all inline-flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Create New Account
+                </motion.button>
               </Link>
-            </p>
-          </div>
+            </div>
 
-          {/* Public Attendance */}
-          <div className="mt-4 text-center">
-            <Link 
-              to="/public/absen"
-              className="inline-flex items-center gap-2 text-sm text-green-400 hover:text-green-300 font-semibold transition-colors"
-            >
-              <ScanFace className="w-4 h-4" />
-              Quick Attendance (No Login Required)
-            </Link>
+            {/* Public Attendance */}
+            <div className="text-center p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl">
+              <Link 
+                to="/public/absen"
+                className="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-semibold transition-colors group"
+              >
+                <ScanFace className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                Quick Attendance (No Login)
+              </Link>
+            </div>
           </div>
-        </motion.div>
-
-        {/* Back to Home */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center mt-6"
-        >
-          <Link to="/" className="text-gray-400 hover:text-white transition-colors text-sm">
-            ← Back to Home
-          </Link>
         </motion.div>
       </motion.div>
     </div>

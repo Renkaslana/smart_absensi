@@ -80,16 +80,17 @@ const RegisterPage: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <motion.a
-                href="#apply"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-4 bg-white text-primary-600 font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all inline-flex items-center justify-center gap-2"
-              >
-                <ClipboardList className="w-5 h-5" />
-                Apply Now
-                <ArrowRight className="w-5 h-5" />
-              </motion.a>
+              <Link to="/register/student">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-8 py-4 bg-white text-primary-600 font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all inline-flex items-center justify-center gap-2"
+                >
+                  <ClipboardList className="w-5 h-5" />
+                  Register Now
+                  <ArrowRight className="w-5 h-5" />
+                </motion.button>
+              </Link>
               
               <motion.a
                 href="#process"
@@ -348,15 +349,16 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <motion.a
-                href="mailto:admissions@fahrencenter.sch.id"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-10 py-5 bg-white text-primary-600 font-bold text-lg rounded-2xl shadow-2xl hover:shadow-white/20 transition-all inline-flex items-center justify-center gap-3"
-              >
-                <Mail className="w-6 h-6" />
-                Contact Admissions Office
-              </motion.a>
+              <Link to="/register/student">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-10 py-5 bg-white text-primary-600 font-bold text-lg rounded-2xl shadow-2xl hover:shadow-white/20 transition-all inline-flex items-center justify-center gap-3"
+                >
+                  <ClipboardList className="w-6 h-6" />
+                  Register as Student
+                </motion.button>
+              </Link>
               
               <Link to="/login">
                 <motion.button
@@ -401,4 +403,4 @@ const RegisterPage: React.FC = () => {
   );
 };
 
-export default RegisterPage;
+export default RegisterPage;

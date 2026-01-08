@@ -9,6 +9,8 @@ import { ShellHeader } from '../../components/layouts/Shell';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Feedback';
+import { useLivenessDetection } from '../../hooks/useLivenessDetection';
+import { speakFeedback } from '../../utils/livenessDetection';
 
 const FaceRegistrationPage = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -21,14 +23,19 @@ const FaceRegistrationPage = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [autoCapture, setAutoCapture] = useState(false);
-  const [livenessCheck, setLivenessCheck] = useState({
-    faceDetected: true,
-    quality: 'good' as 'good' | 'poor',
-    message: 'Posisikan wajah di area oval'
-  });
 
   const MIN_IMAGES = 3;
   const MAX_IMAGES = 5;
+
+  // 🌙 Production Liveness Detection
+  const { result: livenessResult, resetBlinkCount } = useLivenessDetection(
+    videoRef as React.RefObject<HTMLVideoElement>,
+    {
+      enabled: cameraReady && autoCapture,
+      checkInterval: 500,
+      voiceFeedback: true,
+    }
+  );
 
   useEffect(() => {
     startCamera();
@@ -37,20 +44,25 @@ const FaceRegistrationPage = () => {
     };
   }, []);
 
-  // Auto capture effect
+  // Auto capture effect with REAL liveness detection 🌙
   useEffect(() => {
     if (!autoCapture || !cameraReady || capturedImages.length >= MAX_IMAGES) {
       return;
     }
 
-    const interval = setInterval(() => {
-      if (livenessCheck.faceDetected && livenessCheck.quality === 'good') {
+    // Only capture when ALL liveness checks pass
+    if (livenessResult.canCapture && livenessResult.status === 'pass') {
+      const timer = setTimeout(() => {
         captureImage();
-      }
-    }, 2000); // Capture every 2 seconds
+        speakFeedback(`Foto ${capturedImages.length + 1} berhasil diambil`);
+        
+        // Reset blink count after successful capture
+        resetBlinkCount();
+      }, 1000); // 1 second delay after passing all checks
 
-    return () => clearInterval(interval);
-  }, [autoCapture, cameraReady, capturedImages.length, livenessCheck]);
+      return () => clearTimeout(timer);
+    }
+  }, [autoCapture, cameraReady, capturedImages.length, livenessResult]);
 
   // Stop auto capture when max reached
   useEffect(() => {
@@ -99,10 +111,20 @@ const FaceRegistrationPage = () => {
       return;
     }
 
-    // Simple quality check
-    if (livenessCheck.quality === 'poor') {
-      toast.error('Kualitas gambar kurang baik, perbaiki pencahayaan');
-      return;
+    // Manual capture: check basic liveness (lenient)
+    if (!autoCapture) {
+      if (!livenessResult.details.faceDetected) {
+        toast.error('Wajah tidak terdeteksi');
+        return;
+      }
+      if (livenessResult.details.isBlurry) {
+        toast.error('Gambar buram, tahan kamera dengan stabil');
+        return;
+      }
+      if (livenessResult.details.isDark) {
+        toast.error('Cahaya terlalu gelap/terang, atur pencahayaan');
+        return;
+      }
     }
 
     setIsCapturing(true);
@@ -119,7 +141,7 @@ const FaceRegistrationPage = () => {
       // Convert to base64 JPEG
       const imageData = canvas.toDataURL('image/jpeg', 1.0);
       setCapturedImages([...capturedImages, imageData]);
-      
+
       if (autoCapture) {
         toast.success(`Auto: Foto ${capturedImages.length + 1} berhasil`, { duration: 1500 });
       } else {
@@ -203,7 +225,7 @@ const FaceRegistrationPage = () => {
                   ) : (
                     <Badge variant="warning">Menghubungkan...</Badge>
                   )}
-                  
+
                   {autoCapture && (
                     <Badge variant="info">
                       🤖 Auto Capture ON
@@ -211,11 +233,49 @@ const FaceRegistrationPage = () => {
                   )}
                 </div>
 
-                {/* Liveness Check Status */}
-                <div className="absolute top-4 right-4">
-                  <Badge variant={livenessCheck.faceDetected ? 'success' : 'warning'}>
-                    {livenessCheck.message}
+                {/* 🌙 Real-time Liveness Status */}
+                <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                  <Badge 
+                    variant={
+                      livenessResult.status === 'pass' 
+                        ? 'success' 
+                        : livenessResult.status === 'fail' 
+                        ? 'danger' 
+                        : 'warning'
+                    }
+                  >
+                    {livenessResult.message}
                   </Badge>
+                  
+                  {autoCapture && (
+                    <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-white space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${livenessResult.details.faceDetected ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span>Wajah: {livenessResult.details.faceSize}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${!livenessResult.details.isBlurry ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span>Blur: {livenessResult.details.isBlurry ? 'Buram' : 'OK'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${livenessResult.details.blinkCount > 0 ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                        <span>Kedip: {livenessResult.details.blinkCount}x</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${livenessResult.details.isNeutralPose ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span>Pose: {livenessResult.details.isNeutralPose ? 'Frontal' : 'Miring'}</span>
+                      </div>
+                      <div className="w-full bg-neutral-700 rounded-full h-1.5 mt-2">
+                        <div 
+                          className="bg-accent-500 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${livenessResult.progress}%` }}
+                        />
+                      </div>
+                      <div className="text-center text-[10px] text-neutral-300">
+                        {livenessResult.progress}% Complete
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Capture Flash Effect */}
@@ -245,7 +305,7 @@ const FaceRegistrationPage = () => {
                 >
                   {autoCapture ? '⏸️ Stop Auto' : '▶️ Auto Capture'}
                 </Button>
-                
+
                 <Button
                   variant="primary"
                   size="lg"
@@ -263,15 +323,23 @@ const FaceRegistrationPage = () => {
                   <AlertCircle size={20} className="text-accent-600 dark:text-accent-400 flex-shrink-0 mt-0.5" />
                   <div className="space-y-2">
                     <p className="text-sm font-semibold text-accent-900 dark:text-accent-100">
-                      Tips untuk hasil terbaik:
+                      🌙 Anti-Spoofing Protection Aktif
                     </p>
                     <ul className="text-xs text-accent-700 dark:text-accent-300 space-y-1">
-                      <li>• Pastikan pencahayaan cukup terang</li>
-                      <li>• Wajah menghadap kamera langsung</li>
-                      <li>• Ambil foto dengan ekspresi berbeda</li>
-                      <li>• Jangan gunakan kacamata atau topi</li>
+                      <li>• Pastikan pencahayaan cukup terang (tidak gelap/overexposed)</li>
+                      <li>• Wajah menghadap kamera langsung (frontal, tidak miring)</li>
+                      <li>• Kedipkan mata saat auto capture aktif</li>
+                      <li>• Gunakan wajah asli (bukan foto atau layar)</li>
+                      <li>• Tahan kamera dengan stabil (hindari blur)</li>
                       <li>• Minimal 3 foto, maksimal 5 foto</li>
                     </ul>
+                    <div className="mt-3 pt-3 border-t border-accent-200 dark:border-accent-700">
+                      <p className="text-[10px] text-accent-600 dark:text-accent-400">
+                        Sistem menggunakan HOG face detection, blur detection (Laplacian), 
+                        blink detection (EAR), head pose estimation, dan texture analysis (LBP) 
+                        untuk memastikan hanya wajah asli yang dapat didaftarkan.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

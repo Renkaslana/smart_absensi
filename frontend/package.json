@@ -18,6 +18,7 @@
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "face-api.js": "^0.22.2",
     "framer-motion": "^12.24.7",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",

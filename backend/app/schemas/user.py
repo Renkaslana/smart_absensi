@@ -48,3 +48,28 @@ class UserWithStats(UserResponse):
     attendance_rate: float = 0.0
     current_streak: int = 0
     encodings_count: int = 0
+
+
+class UserProfile(BaseModel):
+    """Student/Teacher profile schema."""
+    id: int
+    name: str
+    email: Optional[EmailStr] = None
+    username: str  # nim or nip
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    birth_date: Optional[str] = None
+    kelas: Optional[str] = None
+    role: str
+    
+    class Config:
+        from_attributes = True
+
+
+class UpdateUserProfile(BaseModel):
+    """Update profile data."""
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    birth_date: Optional[str] = None

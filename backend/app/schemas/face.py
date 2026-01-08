@@ -61,3 +61,19 @@ class FaceStatusResponse(BaseModel):
     """Response for face registration status."""
     has_face: bool
     encodings_count: int
+
+
+class FacePhoto(BaseModel):
+    """Individual face photo info."""
+    id: int
+    image_url: str
+    quality_score: float
+    uploaded_at: str
+
+
+class FaceRegistrationStatus(BaseModel):
+    """Complete face registration status."""
+    status: str  # complete, partial, not_registered
+    total_photos: int
+    required_photos: int
+    photos: List[FacePhoto]

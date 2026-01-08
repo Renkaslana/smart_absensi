@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Users, 
@@ -8,16 +9,19 @@ import {
   Clock,
   AlertCircle,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  ScanFace,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { ShellHeader } from '../../components/layouts/Shell';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 import { Badge } from '../../components/ui/Feedback';
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Update time every second
@@ -227,7 +231,7 @@ const AdminDashboard = () => {
             description="Ringkasan status sistem"
           />
           <CardContent>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 mb-4">
               <Badge variant="success" size="md">
                 ✓ Sistem Berjalan Normal
               </Badge>
@@ -240,6 +244,18 @@ const AdminDashboard = () => {
               <Badge variant="default" size="md">
                 📅 {attendanceRate}% Kehadiran Hari Ini
               </Badge>
+            </div>
+
+            <div className="pt-4 border-t border-neutral-200 dark:border-neutral-700">
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => navigate('/admin/attendance-test')}
+                icon={<ScanFace size={20} />}
+                className="w-full sm:w-auto"
+              >
+                Test Face Recognition
+              </Button>
             </div>
           </CardContent>
         </Card>

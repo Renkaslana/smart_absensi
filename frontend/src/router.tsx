@@ -26,6 +26,8 @@ import StudentsPage from './pages/admin/StudentsPage';
 import ClassroomsPage from './pages/admin/ClassroomsPage.tsx';
 import StudentDetailPage from './pages/admin/StudentDetailPage';
 import AttendancePage from './pages/admin/AttendancePage';
+import AttendanceTestPage from './pages/admin/AttendanceTestPage';
+import FaceRegistrationPage from './pages/admin/FaceRegistrationPage';
 import SettingsPage from './pages/admin/SettingsPage';
 
 // Protected Route Component
@@ -144,8 +146,16 @@ export const router = createBrowserRouter([
         element: <StudentDetailPage />,
       },
       {
+        path: 'students/:userId/face-registration',
+        element: <FaceRegistrationPage />,
+      },
+      {
         path: 'attendance',
         element: <AttendancePage />,
+      },
+      {
+        path: 'attendance-test',
+        element: <AttendanceTestPage />,
       },
       {
         path: 'settings',

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Badge } from '../../components/ui/Feedback';
+import useMarkPublicAttendance from '../../hooks/usePublic';
 
 type AttendanceStatus = 'idle' | 'scanning' | 'success' | 'failed';
 
@@ -32,6 +33,7 @@ const PublicAttendancePage: React.FC = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const mutation = useMarkPublicAttendance();
 
   // Update clock every second
   useEffect(() => {
@@ -55,15 +57,22 @@ const PublicAttendancePage: React.FC = () => {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720, facingMode: 'user' },
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
+      
       setStream(mediaStream);
       setCameraActive(true);
+      
+      // Wait a bit then attach to video element
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      }, 100);
+      
       toast.success('Kamera aktif');
     } catch (error) {
       toast.error('Gagal mengakses kamera');
       console.error('Camera error:', error);
+      setCameraActive(false);
     }
   };
 
@@ -87,31 +96,61 @@ const PublicAttendancePage: React.FC = () => {
     setResult(null);
 
     // Simulate face recognition process (2-3 seconds)
-    setTimeout(() => {
-      // Simulate random success/failure (80% success rate)
-      const isSuccess = Math.random() > 0.2;
+    try {
+      // Capture current video frame to base64
+      if (!videoRef.current) throw new Error('Video element not ready');
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Unable to get canvas context');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
 
-      if (isSuccess) {
-        const dummyResult: AttendanceResult = {
-          name: 'Ahmad Rizki Pratama',
-          nis: '20230001',
-          kelas: 'XII IPA 1',
-          confidence: 94.5 + Math.random() * 4,
-          timestamp: new Date().toLocaleString('id-ID'),
-          mata_pelajaran: 'Matematika',
-          ruangan: 'Lab Komputer 1',
+      // Call public attendance API
+      const resp = await mutation.mutateAsync({ image: dataUrl });
+
+      if (resp && resp.success) {
+        // Build result object from response
+        const attendance = resp.attendance;
+        const user = resp.student;
+        const successResult: AttendanceResult = {
+          name: user.name,
+          nis: user.nim || user.username || '',
+          kelas: user.kelas || '',
+          confidence: resp.confidence || attendance?.confidence || 100,
+          timestamp: attendance?.tanggal ? `${attendance.tanggal} ${attendance.waktu}` : new Date().toLocaleString('id-ID'),
+          mata_pelajaran: attendance?.mata_pelajaran || '—',
+          ruangan: attendance?.ruangan || '—',
         };
-        setResult(dummyResult);
+
+        setResult(successResult);
         setStatus('success');
 
-        // Speak success message
-        if ('speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(
-            `Absensi berhasil. Selamat datang ${dummyResult.name}`
-          );
-          utterance.lang = 'id-ID';
-          utterance.rate = 0.9;
-          window.speechSynthesis.speak(utterance);
+        // Play success audio (public/voice/AbsensiBerhasil.mp3)
+        try {
+          const audio = new Audio('/voice/AbsensiBerhasil.mp3');
+          audio.play().catch(() => {
+            // Fallback to speech synthesis if audio autoplay blocked
+            if ('speechSynthesis' in window) {
+              const utterance = new SpeechSynthesisUtterance(
+                `Absensi berhasil. Selamat datang ${successResult.name}`
+              );
+              utterance.lang = 'id-ID';
+              utterance.rate = 0.95;
+              window.speechSynthesis.speak(utterance);
+            }
+          });
+        } catch (e) {
+          if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(
+              `Absensi berhasil. Selamat datang ${successResult.name}`
+            );
+            utterance.lang = 'id-ID';
+            utterance.rate = 0.95;
+            window.speechSynthesis.speak(utterance);
+          }
         }
 
         // Auto reset after 5 seconds
@@ -122,23 +161,28 @@ const PublicAttendancePage: React.FC = () => {
         }, 5000);
       } else {
         setStatus('failed');
+        toast.error(resp?.message || 'Wajah tidak dikenali');
 
-        // Speak failure message
+        // Fallback speech
         if ('speechSynthesis' in window) {
           const utterance = new SpeechSynthesisUtterance(
-            'Wajah tidak dikenali. Silakan coba lagi atau hubungi admin'
+            resp?.message || 'Wajah tidak dikenali. Silakan coba lagi or hubungi admin.'
           );
           utterance.lang = 'id-ID';
-          utterance.rate = 0.9;
+          utterance.rate = 0.95;
           window.speechSynthesis.speak(utterance);
         }
 
-        // Auto reset after 3 seconds
         setTimeout(() => {
           setStatus('idle');
         }, 3000);
       }
-    }, 2500);
+    } catch (err: any) {
+      console.error('Scan error:', err);
+      setStatus('failed');
+      toast.error(err?.message || 'Gagal melakukan scan');
+      setTimeout(() => setStatus('idle'), 3000);
+    }
   };
 
   const handleReset = () => {
@@ -206,27 +250,52 @@ const PublicAttendancePage: React.FC = () => {
                 className="text-center"
               >
                 <div className="bg-white rounded-3xl shadow-2xl p-12 mb-8">
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="w-32 h-32 mx-auto bg-gradient-to-br from-teal-500 to-emerald-600 rounded-full flex items-center justify-center mb-6"
-                  >
-                    <Camera className="w-16 h-16 text-white" />
-                  </motion.div>
-
                   <h2 className="text-4xl font-bold text-gray-900 mb-4">
                     Absensi Wajah
                   </h2>
-                  <p className="text-xl text-gray-600 mb-8">
+                  <p className="text-xl text-gray-600 mb-6">
                     Posisikan wajah Anda di depan kamera untuk melakukan absensi
                   </p>
 
-                  <button
-                    onClick={handleStartScan}
-                    className="px-12 py-5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xl font-bold rounded-2xl shadow-lg transition-all transform hover:scale-105"
-                  >
-                    Mulai Scan
-                  </button>
+                  {/* Camera Preview in Idle State */}
+                  <div className="relative w-full max-w-2xl mx-auto aspect-video bg-gray-900 rounded-2xl overflow-hidden mb-6">
+                    {cameraActive ? (
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                          className="w-24 h-24 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-full flex items-center justify-center mb-4"
+                        >
+                          <Camera className="w-12 h-12 text-white" />
+                        </motion.div>
+                        <p className="text-white text-lg">Klik tombol di bawah untuk mengaktifkan kamera</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {!cameraActive ? (
+                    <button
+                      onClick={startCamera}
+                      className="px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-xl font-bold rounded-2xl shadow-lg transition-all transform hover:scale-105"
+                    >
+                      Aktifkan Kamera
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStartScan}
+                      className="px-12 py-5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xl font-bold rounded-2xl shadow-lg transition-all transform hover:scale-105"
+                    >
+                      Mulai Scan Wajah
+                    </button>
+                  )}
                 </div>
 
                 <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 text-white">

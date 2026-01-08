@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import {
-  Settings as SettingsIcon,
   Camera,
   Bell,
   Shield,
-  Palette,
   Database,
   Save,
-  RotateCcw
+  RotateCcw,
+  Lock,
+  Eye,
+  AlertTriangle,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
-import { toast } from 'react-hot-toast';
+
+import { ShellHeader } from '../../components/layouts/Shell';
+import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 
 const SettingsPage = () => {
   // Face Recognition Settings
@@ -24,7 +27,6 @@ const SettingsPage = () => {
   const [autoBackup, setAutoBackup] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [soundNotifications, setSoundNotifications] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
 
   const handleSave = () => {
     toast.success('Pengaturan berhasil disimpan!');
@@ -38,39 +40,65 @@ const SettingsPage = () => {
     setAutoBackup(true);
     setEmailNotifications(true);
     setSoundNotifications(false);
-    setDarkMode(false);
     toast.success('Pengaturan direset ke default');
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
+      <ShellHeader
+        title="Pengaturan Sistem"
+        description="Kelola konfigurasi face recognition dan sistem"
+        actions={
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              icon={<RotateCcw size={18} />}
+              onClick={handleReset}
+            >
+              Reset
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              icon={<Save size={18} />}
+              onClick={handleSave}
+            >
+              Simpan
+            </Button>
+          </div>
+        }
+      />
+
       {/* Face Recognition Settings */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <Card className="shadow-xl border-0">
-          <CardHeader className="border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                <Camera className="w-5 h-5 text-white" />
-              </div>
-              <CardTitle className="text-xl">Face Recognition Settings</CardTitle>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-500 to-accent-600 flex items-center justify-center shadow-sm">
+              <Camera size={20} className="text-white" />
             </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+                Face Recognition
+              </h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Pengaturan deteksi dan matching wajah
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <div className="space-y-6">
             {/* Confidence Threshold */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold text-gray-900">
+                <label className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   Confidence Threshold
                 </label>
-                <span className="text-sm font-bold text-blue-600">{confidenceThreshold}%</span>
+                <span className="text-sm font-bold text-accent-600 dark:text-accent-400">
+                  {confidenceThreshold}%
+                </span>
               </div>
               <input
                 type="range"
@@ -78,9 +106,9 @@ const SettingsPage = () => {
                 max="100"
                 value={confidenceThreshold}
                 onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-accent-600"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 Minimum confidence score untuk mengenali wajah (default: 85%)
               </p>
             </div>
@@ -88,10 +116,12 @@ const SettingsPage = () => {
             {/* Min Face Size */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold text-gray-900">
+                <label className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   Minimum Face Size
                 </label>
-                <span className="text-sm font-bold text-blue-600">{minFaceSize}px</span>
+                <span className="text-sm font-bold text-accent-600 dark:text-accent-400">
+                  {minFaceSize}px
+                </span>
               </div>
               <input
                 type="range"
@@ -99,272 +129,176 @@ const SettingsPage = () => {
                 max="150"
                 value={minFaceSize}
                 onChange={(e) => setMinFaceSize(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-accent-600"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 Ukuran minimum wajah yang akan dideteksi (default: 80px)
               </p>
             </div>
 
             {/* Liveness Detection */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                  Liveness Detection
-                </h3>
-                <p className="text-xs text-gray-600">
-                  Deteksi apakah wajah adalah manusia asli atau foto
-                </p>
+            <div className="flex items-center justify-between py-3 border-t border-neutral-200 dark:border-neutral-700">
+              <div className="flex items-center gap-3">
+                <Eye size={20} className="text-accent-500" />
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    Liveness Detection
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Deteksi wajah asli vs foto/video
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setLivenessDetection(!livenessDetection)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  livenessDetection ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    livenessDetection ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livenessDetection}
+                  onChange={(e) => setLivenessDetection(e.target.checked)}
+                  className="sr-only peer"
                 />
-              </button>
+                <div className="w-11 h-6 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-300 dark:peer-focus:ring-accent-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-600"></div>
+              </label>
             </div>
 
             {/* Multiple Encodings */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                  Multiple Encodings
-                </h3>
-                <p className="text-xs text-gray-600">
-                  Gunakan 3-5 foto per user untuk akurasi lebih baik
-                </p>
+            <div className="flex items-center justify-between py-3 border-t border-neutral-200 dark:border-neutral-700">
+              <div className="flex items-center gap-3">
+                <Camera size={20} className="text-accent-500" />
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    Multiple Encodings
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Simpan 3-5 encoding per user untuk akurasi lebih baik
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setMultipleEncodings(!multipleEncodings)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  multipleEncodings ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    multipleEncodings ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={multipleEncodings}
+                  onChange={(e) => setMultipleEncodings(e.target.checked)}
+                  className="sr-only peer"
                 />
-              </button>
+                <div className="w-11 h-6 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-300 dark:peer-focus:ring-accent-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-600"></div>
+              </label>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* System Settings */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <Card className="shadow-xl border-0">
-          <CardHeader className="border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                <SettingsIcon className="w-5 h-5 text-white" />
-              </div>
-              <CardTitle className="text-xl">System Settings</CardTitle>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-sm">
+              <Shield size={20} className="text-white" />
             </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+                Sistem & Notifikasi
+              </h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Pengaturan umum aplikasi
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <div className="space-y-4">
             {/* Auto Backup */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+            <div className="flex items-center justify-between py-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                  <Database className="w-5 h-5 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                <Database size={20} className="text-primary-500" />
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                     Auto Backup
-                  </h3>
-                  <p className="text-xs text-gray-600">
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
                     Backup otomatis database setiap hari
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setAutoBackup(!autoBackup)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  autoBackup ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    autoBackup ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoBackup}
+                  onChange={(e) => setAutoBackup(e.target.checked)}
+                  className="sr-only peer"
                 />
-              </button>
+                <div className="w-11 h-6 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+              </label>
             </div>
 
             {/* Email Notifications */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+            <div className="flex items-center justify-between py-3 border-t border-neutral-200 dark:border-neutral-700">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                <Bell size={20} className="text-primary-500" />
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                     Email Notifications
-                  </h3>
-                  <p className="text-xs text-gray-600">
-                    Kirim notifikasi via email untuk event penting
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Kirim notifikasi absensi via email
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setEmailNotifications(!emailNotifications)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  emailNotifications ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    emailNotifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={emailNotifications}
+                  onChange={(e) => setEmailNotifications(e.target.checked)}
+                  className="sr-only peer"
                 />
-              </button>
+                <div className="w-11 h-6 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+              </label>
             </div>
 
             {/* Sound Notifications */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+            <div className="flex items-center justify-between py-3 border-t border-neutral-200 dark:border-neutral-700">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-yellow-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                <Bell size={20} className="text-primary-500" />
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                     Sound Notifications
-                  </h3>
-                  <p className="text-xs text-gray-600">
-                    Suara notifikasi untuk absensi berhasil
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Aktifkan suara untuk notifikasi
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setSoundNotifications(!soundNotifications)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  soundNotifications ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    soundNotifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={soundNotifications}
+                  onChange={(e) => setSoundNotifications(e.target.checked)}
+                  className="sr-only peer"
                 />
-              </button>
+                <div className="w-11 h-6 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+              </label>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Appearance Settings */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card className="shadow-xl border-0">
-          <CardHeader className="border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg">
-                <Palette className="w-5 h-5 text-white" />
-              </div>
-              <CardTitle className="text-xl">Appearance</CardTitle>
+      {/* Security Notice */}
+      <Card>
+        <CardContent>
+          <div className="flex items-start gap-3 p-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
+            <AlertTriangle size={20} className="text-warning-600 dark:text-warning-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-warning-900 dark:text-warning-100">
+                Perubahan Pengaturan Memerlukan Restart
+              </p>
+              <p className="text-xs text-warning-700 dark:text-warning-300 mt-1">
+                Beberapa pengaturan akan diterapkan setelah aplikasi direstart.
+              </p>
             </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            {/* Dark Mode */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <Palette className="w-5 h-5 text-slate-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    Dark Mode
-                  </h3>
-                  <p className="text-xs text-gray-600">
-                    Aktifkan tampilan gelap (Coming Soon)
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                disabled
-                className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 opacity-50 cursor-not-allowed"
-              >
-                <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-1" />
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Security Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <Card className="shadow-xl border-0 bg-gradient-to-br from-blue-50 to-indigo-50">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  Security Notice
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Perubahan pengaturan face recognition akan mempengaruhi akurasi sistem absensi. 
-                  Pastikan untuk test ulang setelah mengubah threshold.
-                </p>
-                <ul className="space-y-1 text-xs text-gray-600">
-                  <li>• Confidence threshold 85% adalah nilai optimal untuk sebagian besar kasus</li>
-                  <li>• Liveness detection sangat disarankan untuk mencegah spoofing</li>
-                  <li>• Multiple encodings meningkatkan akurasi hingga 15%</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Action Buttons */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="flex items-center justify-end gap-4"
-      >
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleReset}
-          className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold flex items-center gap-2 hover:border-gray-400 transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Reset to Default
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleSave}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
-        >
-          <Save className="w-4 h-4" />
-          Save Changes
-        </motion.button>
-      </motion.div>
-    </motion.div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

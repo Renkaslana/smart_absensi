@@ -1,132 +1,195 @@
-import { Bell, Search, Menu, Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Bell, Moon, Sun, Menu, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { useUIStore } from '../../stores/uiStore';
+import { useAuthStore } from '../../stores/authStore';
 
-interface TopbarProps {
-  onMenuClick?: () => void;
-  className?: string;
-  sidebarCollapsed?: boolean;
-}
+export const Topbar = () => {
+  const [darkMode, setDarkMode] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  
+  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const user = useAuthStore((state) => state.user);
 
-export const Topbar = ({ onMenuClick, className, sidebarCollapsed = false }: TopbarProps) => {
-  return (
-    <header
-      className={cn(
-        'fixed top-0 right-0 z-30 h-16 bg-white dark:bg-primary-700',
-        'border-b border-neutral-200 dark:border-neutral-700',
-        'transition-all duration-300',
-        sidebarCollapsed ? 'left-16' : 'left-64',
-        className
-      )}
-    >
-      <div className="flex h-full items-center justify-between px-4 md:px-6">
-        {/* Left: Menu & Search */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onMenuClick}
-            className="rounded-lg p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700/50"
-            aria-label="Toggle sidebar"
-          >
-            <Menu size={20} />
-          </button>
-          
-          <div className="hidden md:flex items-center gap-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 px-3 py-2">
-            <Search size={18} className="text-neutral-400" />
-            <input
-              type="text"
-              placeholder="Cari siswa, kelas, atau laporan..."
-              className="w-64 bg-transparent text-sm text-neutral-700 placeholder-neutral-400 focus:outline-none dark:text-neutral-200"
-            />
-            <kbd className="hidden lg:inline-block rounded bg-neutral-200 dark:bg-neutral-700 px-1.5 py-0.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
-              ⌘K
-            </kbd>
-          </div>
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <NotificationButton />
-          <UserMenu />
-        </div>
-      </div>
-    </header>
-  );
-};
-
-const ThemeToggle = () => {
-  const toggleTheme = () => {
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
     document.documentElement.classList.toggle('dark');
   };
 
   return (
-    <button
-      onClick={toggleTheme}
-      className="rounded-lg p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700/50"
-      aria-label="Toggle theme"
-    >
-      <Sun size={20} className="hidden dark:block" />
-      <Moon size={20} className="block dark:hidden" />
-    </button>
-  );
-};
+    <div className="flex items-center justify-between h-16 px-6">
+      {/* Left Section */}
+      <div className="flex items-center gap-4">
+        {/* Menu Toggle Button */}
+        <button
+          onClick={toggleSidebar}
+          className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+          aria-label="Toggle Sidebar"
+          title="Toggle Sidebar"
+        >
+          <Menu size={20} className="text-neutral-700 dark:text-neutral-300" />
+        </button>
 
-const NotificationButton = () => {
-  return (
-    <button
-      className="relative rounded-lg p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700/50"
-      aria-label="Notifications"
-    >
-      <Bell size={20} />
-      <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-coral-500 ring-2 ring-white dark:ring-primary-700" />
-    </button>
-  );
-};
-
-const UserMenu = () => {
-  return (
-    <div className="flex items-center gap-3 ml-2">
-      <div className="hidden md:block text-right">
-        <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-100">
-          Admin User
-        </div>
-        <div className="text-xs text-neutral-500 dark:text-neutral-400">
-          Administrator
+        {/* Search */}
+        <div className="relative hidden md:block">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
+          />
+          <input
+            type="text"
+            placeholder="Cari siswa, kelas..."
+            className={cn(
+              'w-80 pl-10 pr-4 py-2 rounded-lg',
+              'bg-neutral-100 dark:bg-neutral-700',
+              'border border-transparent',
+              'focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent',
+              'text-sm text-neutral-900 dark:text-neutral-100',
+              'placeholder:text-neutral-500 dark:placeholder:text-neutral-400',
+              'transition-all'
+            )}
+          />
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-0.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400 bg-neutral-200 dark:bg-neutral-600 rounded">
+            ⌘K
+          </kbd>
         </div>
       </div>
-      <button className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-sm font-semibold text-white ring-2 ring-white dark:ring-primary-700 hover:ring-accent-300 transition-all">
-        AU
-      </button>
+
+      {/* Right Section */}
+      <div className="flex items-center gap-2">
+        {/* Theme Toggle */}
+        <ThemeToggle darkMode={darkMode} onToggle={toggleDarkMode} />
+
+        {/* Notifications */}
+        <NotificationButton
+          show={showNotifications}
+          onToggle={() => setShowNotifications(!showNotifications)}
+        />
+
+        {/* User Menu */}
+        <UserMenu
+          user={user}
+          show={showUserMenu}
+          onToggle={() => setShowUserMenu(!showUserMenu)}
+        />
+      </div>
     </div>
   );
 };
 
-interface TopbarBreadcrumbProps {
-  items: Array<{ label: string; href?: string }>;
-  className?: string;
+// Theme Toggle Button
+interface ThemeToggleProps {
+  darkMode: boolean;
+  onToggle: () => void;
 }
 
-export const TopbarBreadcrumb = ({ items, className }: TopbarBreadcrumbProps) => {
+const ThemeToggle = ({ darkMode, onToggle }: ThemeToggleProps) => {
   return (
-    <nav className={cn('flex items-center gap-2 text-sm', className)}>
-      {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-2">
-          {index > 0 && (
-            <span className="text-neutral-400">/</span>
-          )}
-          {item.href ? (
-            <a
-              href={item.href}
-              className="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-            >
-              {item.label}
-            </a>
-          ) : (
-            <span className="font-medium text-neutral-900 dark:text-neutral-100">
-              {item.label}
-            </span>
-          )}
+    <button
+      onClick={onToggle}
+      className={cn(
+        'p-2 rounded-lg transition-colors',
+        'hover:bg-neutral-100 dark:hover:bg-neutral-700'
+      )}
+      aria-label="Toggle Dark Mode"
+      title="Toggle Dark Mode"
+    >
+      {darkMode ? (
+        <Sun size={20} className="text-neutral-700 dark:text-neutral-300" />
+      ) : (
+        <Moon size={20} className="text-neutral-700 dark:text-neutral-300" />
+      )}
+    </button>
+  );
+};
+
+// Notification Button
+interface NotificationButtonProps {
+  show: boolean;
+  onToggle: () => void;
+}
+
+const NotificationButton = ({ show, onToggle }: NotificationButtonProps) => {
+  return (
+    <div className="relative">
+      <button
+        onClick={onToggle}
+        className={cn(
+          'relative p-2 rounded-lg transition-colors',
+          'hover:bg-neutral-100 dark:hover:bg-neutral-700'
+        )}
+        aria-label="Notifications"
+        title="Notifications"
+      >
+        <Bell size={20} className="text-neutral-700 dark:text-neutral-300" />
+        {/* Badge */}
+        <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full" />
+      </button>
+
+      {/* Dropdown */}
+      {show && (
+        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-primary-700 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-600 overflow-hidden">
+          <div className="p-4 border-b border-neutral-200 dark:border-neutral-600">
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              Notifikasi
+            </h3>
+          </div>
+          <div className="p-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
+            Tidak ada notifikasi baru
+          </div>
         </div>
-      ))}
-    </nav>
+      )}
+    </div>
+  );
+};
+
+// User Menu
+interface UserMenuProps {
+  user: any;
+  show: boolean;
+  onToggle: () => void;
+}
+
+const UserMenu = ({ user, show, onToggle }: UserMenuProps) => {
+  return (
+    <div className="relative">
+      <button
+        onClick={onToggle}
+        className={cn(
+          'flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+          'hover:bg-neutral-100 dark:hover:bg-neutral-700'
+        )}
+      >
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent-500 to-accent-600 flex items-center justify-center">
+          <span className="text-white font-bold text-sm">
+            {user?.name?.[0] || 'A'}
+          </span>
+        </div>
+        <ChevronDown size={16} className="text-neutral-500" />
+      </button>
+
+      {/* Dropdown */}
+      {show && (
+        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-primary-700 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-600 overflow-hidden">
+          <div className="p-3 border-b border-neutral-200 dark:border-neutral-600">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              {user?.name}
+            </p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              {user?.email}
+            </p>
+          </div>
+          <div className="p-2">
+            <button className="w-full text-left px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg">
+              Profil Saya
+            </button>
+            <button className="w-full text-left px-3 py-2 text-sm text-danger-600 dark:text-danger-400 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg">
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };

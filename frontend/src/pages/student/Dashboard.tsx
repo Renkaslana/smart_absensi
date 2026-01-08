@@ -29,20 +29,20 @@ const Dashboard: React.FC = () => {
   const todaySchedule = [
     {
       id: 1,
-      mata_kuliah: 'Algoritma & Pemrograman',
+      mata_pelajaran: 'Matematika',
       waktu_mulai: '08:00',
       waktu_selesai: '10:00',
-      ruangan: 'Lab Komputer 1',
-      dosen: 'Dr. John Doe',
+      ruangan: 'Kelas 12A',
+      guru: 'Pak Ahmad',
       status: 'upcoming',
     },
     {
       id: 2,
-      mata_kuliah: 'Basis Data',
+      mata_pelajaran: 'Bahasa Inggris',
       waktu_mulai: '10:30',
       waktu_selesai: '12:30',
-      ruangan: 'R. 301',
-      dosen: 'Prof. Jane Smith',
+      ruangan: 'Kelas 12A',
+      guru: 'Bu Sarah',
       status: 'upcoming',
     },
   ];
@@ -52,7 +52,7 @@ const Dashboard: React.FC = () => {
       id: 1,
       tanggal: '2026-01-08',
       waktu: '08:05',
-      mata_kuliah: 'Algoritma & Pemrograman',
+      mata_pelajaran: 'Matematika',
       status: 'hadir' as const,
       method: 'face_recognition' as const,
       confidence: 0.95,
@@ -61,7 +61,7 @@ const Dashboard: React.FC = () => {
       id: 2,
       tanggal: '2026-01-07',
       waktu: '10:32',
-      mata_kuliah: 'Basis Data',
+      mata_pelajaran: 'Bahasa Inggris',
       status: 'hadir' as const,
       method: 'face_recognition' as const,
       confidence: 0.92,
@@ -70,7 +70,7 @@ const Dashboard: React.FC = () => {
       id: 3,
       tanggal: '2026-01-06',
       waktu: '14:15',
-      mata_kuliah: 'Struktur Data',
+      mata_pelajaran: 'Fisika',
       status: 'hadir' as const,
       method: 'manual' as const,
       confidence: null,
@@ -109,7 +109,7 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard Mahasiswa</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard Siswa</h1>
         <p className="text-gray-600 mt-1">Selamat datang! Berikut ringkasan absensi Anda.</p>
       </div>
 
@@ -239,11 +239,11 @@ const Dashboard: React.FC = () => {
                         <Clock className="w-6 h-6 text-teal-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 mb-1">{kelas.mata_kuliah}</h3>
+                        <h3 className="font-semibold text-gray-900 mb-1">{kelas.mata_pelajaran}</h3>
                         <p className="text-sm text-gray-600 mb-2">
                           {kelas.waktu_mulai} - {kelas.waktu_selesai} • {kelas.ruangan}
                         </p>
-                        <p className="text-sm text-gray-500">Dosen: {kelas.dosen}</p>
+                        <p className="text-sm text-gray-500">Guru: {kelas.guru}</p>
                       </div>
                       <Badge variant="info">Upcoming</Badge>
                     </div>
@@ -325,7 +325,7 @@ const Dashboard: React.FC = () => {
                 >
                   {getStatusIcon(activity.status)}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate">{activity.mata_kuliah}</h3>
+                    <h3 className="font-semibold text-gray-900 truncate">{activity.mata_pelajaran}</h3>
                     <p className="text-sm text-gray-600">
                       {activity.tanggal} • {activity.waktu}
                     </p>

@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore';
 import PublicLayout from './components/layouts/PublicLayout';
 import AppLayout from './components/layouts/AppLayout';
 import AdminLayout from './components/layouts/AdminLayout';
+import StudentLayout from './components/layouts/StudentLayout';
 
 // Public Pages
 import LandingPage from './pages/public/LandingPage';
@@ -86,28 +87,24 @@ export const router = createBrowserRouter([
 
   // Student Routes (Protected)
   {
-    path: '/',
+    path: '/student',
     element: (
-      <ProtectedRoute allowedRoles={['user', 'teacher']}>
-        <AppLayout />
+      <ProtectedRoute allowedRoles={['user']}>
+        <StudentLayout />
       </ProtectedRoute>
     ),
     children: [
       {
-        path: 'dashboard',
+        index: true,
         element: <Dashboard />,
       },
       {
-        path: 'absen',
-        element: <AbsensiPage />,
-      },
-      {
-        path: 'register-face',
-        element: <RegisterFacePage />,
-      },
-      {
-        path: 'history',
+        path: 'attendance',
         element: <HistoryPage />,
+      },
+      {
+        path: 'face',
+        element: <RegisterFacePage />,
       },
       {
         path: 'profile',

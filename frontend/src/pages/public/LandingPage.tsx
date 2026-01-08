@@ -1,28 +1,13 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ScanFace,
-  ChartBar,
-  Shield,
-  Users,
-  Sparkles,
-  ArrowRight,
-  CheckCircle,
-  Zap,
-  Award,
-  BookOpen,
   Globe,
   GraduationCap,
-  Heart,
-  Star,
-  Target,
-  Trophy,
-  Building2,
-  MapPin,
-  Phone,
-  Mail
+  LayoutDashboard,
+  LogOut
 } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 import Hero from './content/Hero';
 import About from './content/About';
 import Programs from './content/Programs';
@@ -32,6 +17,19 @@ import Achievements from './content/Achievements';
 import Contact from './content/Contact';
 
 const LandingPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuthStore();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
+
+  const getDashboardLink = () => {
+    if (!user) return '/login';
+    return user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/student';
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navbar */}
@@ -53,30 +51,58 @@ const LandingPage: React.FC = () => {
                 <p className="text-xs text-gray-600">International School</p>
               </div>
             </motion.div>
-            
-            <div className="hidden md:flex items-center gap-8">
-              <a href="#about" className="text-gray-700 hover:text-primary-600 font-medium transition-colors">About</a>
-              <a href="#programs" className="text-gray-700 hover:text-primary-600 font-medium transition-colors">Programs</a>
-              <a href="#facilities" className="text-gray-700 hover:text-primary-600 font-medium transition-colors">Facilities</a>
-              <a href="#attendance" className="text-gray-700 hover:text-primary-600 font-medium transition-colors">Smart Attendance</a>
-              <a href="#contact" className="text-gray-700 hover:text-primary-600 font-medium transition-colors">Contact</a>
-            </div>
 
-            <motion.div 
+            {/* 🌙 Auth-aware Navigation */}
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="flex items-center gap-3"
             >
-              <Link to="/login">
-                <button className="px-5 py-2.5 text-gray-700 hover:text-primary-600 font-medium transition-colors">
-                  Portal Login
-                </button>
-              </Link>
-              <Link to="/register/student">
-                <button className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:scale-105">
-                  Student Register
-                </button>
-              </Link>
+              {isAuthenticated && user ? (
+                <>
+                  {/* User Info */}
+                  <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-teal-50 border border-teal-200 rounded-lg">
+                    <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                      <p className="text-xs text-gray-600 capitalize">{user.role}</p>
+                    </div>
+                  </div>
+
+                  {/* Dashboard Button */}
+                  <Link to={getDashboardLink()}>
+                    <button className="px-5 py-2.5 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:scale-105 flex items-center gap-2">
+                      <LayoutDashboard size={18} />
+                      Dashboard
+                    </button>
+                  </Link>
+
+                  {/* Logout Button */}
+                  <button 
+                    onClick={handleLogout}
+                    className="px-4 py-2.5 text-gray-700 hover:text-red-600 font-medium transition-colors flex items-center gap-2"
+                  >
+                    <LogOut size={18} />
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Login & Register Buttons */}
+                  <Link to="/login">
+                    <button className="px-5 py-2.5 text-gray-700 hover:text-teal-600 font-medium transition-colors">
+                      Portal Login
+                    </button>
+                  </Link>
+                  <Link to="/register/student">
+                    <button className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:scale-105">
+                      Student Register
+                    </button>
+                  </Link>
+                </>
+              )}
             </motion.div>
           </div>
         </div>

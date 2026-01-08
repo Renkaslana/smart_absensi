@@ -9,11 +9,33 @@ import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Feedback';
 import { SkeletonTable } from '../../components/ui/Skeleton';
+import { Modal, ConfirmDialog } from '../../components/ui/Modal';
+
+interface KelasFormData {
+  code: string;
+  name: string;
+  capacity: number;
+  academic_year: string;
+  is_active: boolean;
+}
 
 const ClassroomsPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [onlyActive, setOnlyActive] = useState(false);
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedKelas, setSelectedKelas] = useState<any>(null);
+
+  const [formData, setFormData] = useState<KelasFormData>({
+    code: '',
+    name: '',
+    capacity: 30,
+    academic_year: '2024/2025',
+    is_active: true,
+  });
 
   const { data: kelasData, isLoading } = useQuery({
     queryKey: ['kelas'],
@@ -32,18 +54,102 @@ const ClassroomsPage = () => {
     return matchesSearch && matchesActive;
   });
 
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data: KelasFormData) => adminService.createKelas(data),
+    onSuccess: () => {
+      toast.success('Kelas berhasil ditambahkan');
+      queryClient.invalidateQueries({ queryKey: ['kelas'] });
+      setIsCreateModalOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Gagal menambahkan kelas');
+    },
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: KelasFormData }) =>
+      adminService.updateKelas(id, data),
+    onSuccess: () => {
+      toast.success('Kelas berhasil diperbarui');
+      queryClient.invalidateQueries({ queryKey: ['kelas'] });
+      setIsEditModalOpen(false);
+      setSelectedKelas(null);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Gagal memperbarui kelas');
+    },
+  });
+
+  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (id: number) => adminService.deleteKelas(id),
     onSuccess: () => {
       toast.success('Kelas berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['kelas'] });
+      setIsDeleteDialogOpen(false);
+      setSelectedKelas(null);
     },
     onError: () => toast.error('Gagal menghapus kelas'),
   });
 
-  const handleDelete = (id: number, name: string) => {
-    if (window.confirm(`Hapus kelas ${name}?`)) {
-      deleteMutation.mutate(id);
+  const resetForm = () => {
+    setFormData({
+      code: '',
+      name: '',
+      capacity: 30,
+      academic_year: '2024/2025',
+      is_active: true,
+    });
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsCreateModalOpen(true);
+  };
+
+  const openEditModal = (kelas: any) => {
+    setSelectedKelas(kelas);
+    setFormData({
+      code: kelas.code,
+      name: kelas.name,
+      capacity: kelas.capacity || 30,
+      academic_year: kelas.academic_year || '2024/2025',
+      is_active: kelas.is_active,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const openDeleteDialog = (kelas: any) => {
+    setSelectedKelas(kelas);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.code || !formData.name) {
+      toast.error('Kode dan nama kelas harus diisi');
+      return;
+    }
+    createMutation.mutate(formData);
+  };
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedKelas) return;
+    if (!formData.code || !formData.name) {
+      toast.error('Kode dan nama kelas harus diisi');
+      return;
+    }
+    updateMutation.mutate({ id: selectedKelas.id, data: formData });
+  };
+
+  const handleDelete = () => {
+    if (selectedKelas) {
+      deleteMutation.mutate(selectedKelas.id);
     }
   };
 
@@ -53,7 +159,7 @@ const ClassroomsPage = () => {
         title="Manajemen Kelas"
         description="Kelola kelas sesuai struktur internasional"
         actions={
-          <Button size="md" icon={<Plus size={18} />}>
+          <Button size="md" onClick={openCreateModal} icon={<Plus size={18} />}>
             Tambah Kelas
           </Button>
         }
@@ -100,7 +206,7 @@ const ClassroomsPage = () => {
 
         <CardContent>
           {isLoading ? (
-            <SkeletonTable rows={5} columns={5} />
+            <SkeletonTable rows={5} columns={6} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -163,18 +269,15 @@ const ClassroomsPage = () => {
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => openEditModal(kelas)}
                             icon={<Edit size={16} />}
-                          >
-                            Edit
-                          </Button>
+                          />
                           <Button
                             size="sm"
                             variant="danger"
-                            onClick={() => handleDelete(kelas.id, kelas.name)}
+                            onClick={() => openDeleteDialog(kelas)}
                             icon={<Trash2 size={16} />}
-                          >
-                            Hapus
-                          </Button>
+                          />
                         </div>
                       </td>
                     </tr>
@@ -185,6 +288,202 @@ const ClassroomsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Create Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="Tambah Kelas Baru"
+        description="Isi data lengkap untuk menambahkan kelas baru"
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleCreate}
+              isLoading={createMutation.isPending}
+            >
+              Simpan
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Kode Kelas <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Contoh: 10A"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Nama Kelas <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Contoh: Kelas 10 A"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Kapasitas
+            </label>
+            <input
+              type="number"
+              value={formData.capacity}
+              onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Tahun Ajaran
+            </label>
+            <input
+              type="text"
+              value={formData.academic_year}
+              onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Contoh: 2024/2025"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_active_create"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded border-neutral-300 text-accent-500 focus:ring-accent-500"
+            />
+            <label
+              htmlFor="is_active_create"
+              className="text-sm font-medium text-neutral-700 dark:text-neutral-300"
+            >
+              Kelas Aktif
+            </label>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Kelas"
+        description="Perbarui informasi kelas"
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleUpdate}
+              isLoading={updateMutation.isPending}
+            >
+              Simpan Perubahan
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdate} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Kode Kelas <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Nama Kelas <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Kapasitas
+            </label>
+            <input
+              type="number"
+              value={formData.capacity}
+              onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Tahun Ajaran
+            </label>
+            <input
+              type="text"
+              value={formData.academic_year}
+              onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_active_edit"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded border-neutral-300 text-accent-500 focus:ring-accent-500"
+            />
+            <label
+              htmlFor="is_active_edit"
+              className="text-sm font-medium text-neutral-700 dark:text-neutral-300"
+            >
+              Kelas Aktif
+            </label>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        title="Hapus Kelas"
+        description={`Apakah Anda yakin ingin menghapus kelas ${selectedKelas?.name}? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 };

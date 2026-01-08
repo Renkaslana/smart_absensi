@@ -133,7 +133,7 @@ export function useLivenessDetection(
             qualityResult,
             {
               isRealFace: false,
-              blinkCount: blinkStateRef.current.blinkCount,
+              blinkCount: mouthStateRef.current.openCount, // 🆕 Using mouth opens count
               isNeutralPose: false,
               isScreen: false,
               textureScore: 0,

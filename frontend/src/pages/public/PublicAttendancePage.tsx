@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
   Camera,
   CheckCircle,
@@ -9,6 +10,7 @@ import {
   User,
   Calendar,
   Loader,
+  Home,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Badge } from '../../components/ui/Feedback';
@@ -115,11 +117,16 @@ const PublicAttendancePage: React.FC = () => {
         // Build result object from response
         const attendance = resp.attendance;
         const user = resp.student;
+        
+        // Convert confidence to percentage (0.755 → 75.5%)
+        const confidenceValue = resp.confidence || attendance?.confidence || 1.0;
+        const confidencePercent = confidenceValue * 100;
+        
         const successResult: AttendanceResult = {
           name: user.name,
           nis: user.nim || user.username || '',
           kelas: user.kelas || '',
-          confidence: resp.confidence || attendance?.confidence || 100,
+          confidence: confidencePercent,
           timestamp: attendance?.tanggal ? `${attendance.tanggal} ${attendance.waktu}` : new Date().toLocaleString('id-ID'),
           mata_pelajaran: attendance?.mata_pelajaran || '—',
           ruangan: attendance?.ruangan || '—',
@@ -223,15 +230,25 @@ const PublicAttendancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="flex items-center gap-2 text-white text-2xl font-bold mb-1">
-              <Clock className="w-6 h-6" />
-              {formatTime(currentTime)}
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="flex items-center gap-2 text-white text-2xl font-bold mb-1">
+                <Clock className="w-6 h-6" />
+                {formatTime(currentTime)}
+              </div>
+              <div className="flex items-center gap-2 text-white/80 text-sm">
+                <Calendar className="w-4 h-4" />
+                {formatDate(currentTime)}
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-white/80 text-sm">
-              <Calendar className="w-4 h-4" />
-              {formatDate(currentTime)}
-            </div>
+            
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors backdrop-blur-sm"
+            >
+              <Home className="w-5 h-5" />
+              <span className="font-medium">Beranda</span>
+            </Link>
           </div>
         </div>
       </header>

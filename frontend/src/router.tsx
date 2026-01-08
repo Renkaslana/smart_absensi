@@ -27,6 +27,8 @@ import SchedulePage from './pages/student/SchedulePage';
 import TeacherDashboard from './pages/teacher/Dashboard';
 import MyClassesPage from './pages/teacher/MyClassesPage';
 import TeacherProfilePage from './pages/teacher/ProfilePage';
+import MarkAttendancePage from './pages/teacher/MarkAttendancePage';
+import ReportsPage from './pages/teacher/ReportsPage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -140,6 +142,14 @@ export const router = createBrowserRouter([
       {
         path: 'classes',
         element: <MyClassesPage />,
+      },
+      {
+        path: 'mark-attendance',
+        element: <MarkAttendancePage />,
+      },
+      {
+        path: 'reports',
+        element: <ReportsPage />,
       },
       {
         path: 'profile',

@@ -6,6 +6,7 @@ import PublicLayout from './components/layouts/PublicLayout';
 import AppLayout from './components/layouts/AppLayout';
 import AdminLayout from './components/layouts/AdminLayout';
 import StudentLayout from './components/layouts/StudentLayout';
+import TeacherLayout from './components/layouts/TeacherLayout';
 
 // Public Pages
 import LandingPage from './pages/public/LandingPage';
@@ -21,6 +22,11 @@ import RegisterFacePage from './pages/student/RegisterFacePage';
 import HistoryPage from './pages/student/HistoryPage';
 import ProfilePage from './pages/student/ProfilePage';
 import SchedulePage from './pages/student/SchedulePage';
+
+// Teacher Pages
+import TeacherDashboard from './pages/teacher/Dashboard';
+import MyClassesPage from './pages/teacher/MyClassesPage';
+import TeacherProfilePage from './pages/teacher/ProfilePage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -114,6 +120,30 @@ export const router = createBrowserRouter([
       {
         path: 'schedule',
         element: <SchedulePage />,
+      },
+    ],
+  },
+
+  // Teacher Routes (Protected)
+  {
+    path: '/teacher',
+    element: (
+      <ProtectedRoute allowedRoles={['teacher']}>
+        <TeacherLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: <TeacherDashboard />,
+      },
+      {
+        path: 'classes',
+        element: <MyClassesPage />,
+      },
+      {
+        path: 'profile',
+        element: <TeacherProfilePage />,
       },
     ],
   },

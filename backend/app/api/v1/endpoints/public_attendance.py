@@ -92,7 +92,7 @@ async def mark_public_attendance(
         
         for fe in face_encodings_db:
             try:
-                encoding = pickle.loads(fe.encoding)
+                encoding = pickle.loads(fe.encoding_data)
                 known_encodings.append(encoding)
                 user_ids.append(fe.user_id)
             except Exception as e:
@@ -133,7 +133,7 @@ async def mark_public_attendance(
         # Check if already marked today
         existing = db.query(Absensi).filter(
             Absensi.user_id == user_id,
-            Absensi.tanggal == today
+            Absensi.date == today
         ).first()
         
         if existing:
@@ -148,10 +148,10 @@ async def mark_public_attendance(
                 },
                 "attendance": {
                     "id": existing.id,
-                    "tanggal": str(existing.tanggal),
-                    "waktu": existing.waktu,
+                    "tanggal": str(existing.date),
+                    "waktu": existing.timestamp.strftime("%H:%M:%S") if existing.timestamp else "",
                     "status": existing.status,
-                    "method": existing.method,
+                    "method": "face_recognition",
                     "confidence": existing.confidence
                 },
                 "confidence": confidence
@@ -159,17 +159,14 @@ async def mark_public_attendance(
         
         # Create attendance record
         now = datetime.now()
-        waktu = now.strftime("%H:%M:%S")
         
         new_attendance = Absensi(
             user_id=user_id,
-            kelas_id=kelas_id,
-            tanggal=today,
-            waktu=waktu,
+            date=today,
+            timestamp=now,
             status="hadir",
-            method="face_recognition",
             confidence=confidence,
-            keterangan=f"Kiosk attendance - {location}" if location else "Kiosk attendance"
+            device_info=f"Kiosk attendance - {location}" if location else "Kiosk attendance"
         )
         
         db.add(new_attendance)
@@ -187,10 +184,10 @@ async def mark_public_attendance(
             },
             "attendance": {
                 "id": new_attendance.id,
-                "tanggal": str(new_attendance.tanggal),
-                "waktu": new_attendance.waktu,
+                "tanggal": str(new_attendance.date),
+                "waktu": new_attendance.timestamp.strftime("%H:%M:%S") if new_attendance.timestamp else "",
                 "status": new_attendance.status,
-                "method": new_attendance.method,
+                "method": "face_recognition",
                 "confidence": new_attendance.confidence
             },
             "confidence": confidence
@@ -333,7 +330,7 @@ async def check_face_registration(
         
         for fe in face_encodings_db:
             try:
-                encoding = pickle.loads(fe.encoding)
+                encoding = pickle.loads(fe.encoding_data)
                 known_encodings.append(encoding)
                 user_ids.append(fe.user_id)
             except:

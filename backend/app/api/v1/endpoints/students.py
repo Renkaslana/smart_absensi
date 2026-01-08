@@ -244,7 +244,7 @@ def get_face_registration_status(
         photos.append({
             "id": enc.id,
             "image_url": enc.image_path,
-            "quality_score": enc.quality_score or 0,
+            "quality_score": enc.confidence or 0,
             "uploaded_at": enc.created_at.isoformat()
         })
     

@@ -13,7 +13,7 @@ import LandingPage from './pages/public/LandingPage';
 import LoginPage from './pages/public/LoginPage';
 import RegisterPage from './pages/public/RegisterPage';
 import StudentRegistrationPage from './pages/public/StudentRegistrationPage';
-import PublicAbsenPage from './pages/public/PublicAbsenPage';
+import PublicAttendancePage from './pages/public/PublicAttendancePage';
 
 // Student Pages
 import Dashboard from './pages/student/Dashboard';
@@ -89,7 +89,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'public/absen',
-        element: <PublicAbsenPage />,
+        element: <PublicAttendancePage />,
       },
     ],
   },

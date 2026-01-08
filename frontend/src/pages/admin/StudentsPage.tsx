@@ -66,22 +66,33 @@ const StudentsPage = () => {
   });
 
   // Fetch users
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['users', tab, page, searchQuery, filterKelas, filterFace],
-    queryFn: () =>
-      tab === 'siswa'
-        ? adminService.getStudents({
+    queryFn: async () => {
+      console.log('[StudentsPage] Fetching users:', { tab, page, searchQuery, filterKelas, filterFace });
+      
+      const result = tab === 'siswa'
+        ? await adminService.getStudents({
             skip: (page - 1) * LIMIT,
             limit: LIMIT,
-            search: searchQuery,
-            kelas: filterKelas,
+            search: searchQuery || undefined,
+            kelas: filterKelas || undefined,
             has_face: filterFace,
           })
-        : adminService.getTeachers({
+        : await adminService.getTeachers({
             skip: (page - 1) * LIMIT,
             limit: LIMIT,
-          }),
+          });
+      
+      console.log('[StudentsPage] Fetch result:', result);
+      return result;
+    },
   });
+
+  // Log errors
+  if (error) {
+    console.error('[StudentsPage] Query error:', error);
+  }
 
   // Create mutation
   const createMutation = useMutation({
@@ -94,7 +105,21 @@ const StudentsPage = () => {
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Gagal menambahkan user');
+      console.error('Create error:', error);
+      
+      // Handle validation errors (422)
+      if (error.response?.status === 422) {
+        const validationErrors = error.response?.data?.detail;
+        if (Array.isArray(validationErrors)) {
+          // Display first validation error
+          const firstError = validationErrors[0];
+          toast.error(`${firstError.loc.join('.')}: ${firstError.msg}`);
+        } else {
+          toast.error('Data tidak valid, periksa kembali form');
+        }
+      } else {
+        toast.error(error.response?.data?.detail || 'Gagal menambahkan user');
+      }
     },
   });
 

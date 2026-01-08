@@ -219,67 +219,8 @@ const Dashboard: React.FC = () => {
               </Card>
             </motion.div>
           </div>
-        </>
-      )}
-                  <p className="text-3xl font-bold text-emerald-600">{attendanceSummary.total_hadir}</p>
-                  <p className="text-xs text-gray-500 mt-1">Pertemuan</p>
-                </div>
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-emerald-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
 
-        {/* Sakit/Izin */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Sakit / Izin</p>
-                  <p className="text-3xl font-bold text-yellow-600">
-                    {attendanceSummary.total_sakit + attendanceSummary.total_izin}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">Pertemuan</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-yellow-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Alpa */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Alpa</p>
-                  <p className="text-3xl font-bold text-red-600">{attendanceSummary.total_alpa}</p>
-                  <p className="text-xs text-gray-500 mt-1">Pertemuan</p>
-                </div>
-                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                  <XCircle className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's Schedule */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -427,6 +368,8 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
       </motion.div>
+     </>
+      )}
     </div>
   );
 };

@@ -20,6 +20,7 @@ import AbsensiPage from './pages/student/AbsensiPage';
 import RegisterFacePage from './pages/student/RegisterFacePage';
 import HistoryPage from './pages/student/HistoryPage';
 import ProfilePage from './pages/student/ProfilePage';
+import SchedulePage from './pages/student/SchedulePage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -109,6 +110,10 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: <ProfilePage />,
+      },
+      {
+        path: 'schedule',
+        element: <SchedulePage />,
       },
     ],
   },

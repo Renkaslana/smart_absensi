@@ -222,7 +222,7 @@ def get_face_registration_status(
     Get face registration status
     Returns: status (complete/partial/not_registered), photo count, photos
     """
-    face_service = FaceService(db)
+    face_service = FaceService()
     
     # Get all face encodings for this user
     encodings = db.query(FaceEncoding).filter(FaceEncoding.user_id == current_user.id).all()
@@ -266,7 +266,7 @@ async def register_face_photo(
     Register a face photo
     Validates quality and stores encoding
     """
-    face_service = FaceService(db)
+    face_service = FaceService()
     
     # Check if already has max photos (5)
     existing_count = db.query(FaceEncoding).filter(FaceEncoding.user_id == current_user.id).count()
@@ -427,7 +427,7 @@ async def mark_attendance(
     
     # If face recognition
     if method == "face_recognition" and image:
-        face_service = FaceService(db)
+        face_service = FaceService()
         image_data = await image.read()
         
         try:

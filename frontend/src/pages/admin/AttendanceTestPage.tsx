@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { Camera, ScanFace, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Camera, ScanFace, User, CheckCircle, XCircle, AlertCircle, X  } from 'lucide-react';
 
 import { faceService } from '../../services/faceService';
 import { ShellHeader } from '../../components/layouts/Shell';
@@ -19,11 +19,25 @@ const AttendanceTestPage = () => {
   const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
-    startCamera();
+    // Don't auto-start camera, let user click scan button first
     return () => {
+      console.log('[AttendanceTest] Component unmounting - stopping camera');
       stopCamera();
     };
   }, []);
+
+  // Add beforeunload cleanup
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      console.log('[AttendanceTest] Page unloading - stopping camera');
+      stopCamera();
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [stream]);
 
   const startCamera = async () => {
     try {
@@ -48,10 +62,22 @@ const AttendanceTestPage = () => {
   };
 
   const stopCamera = () => {
+    console.log('[AttendanceTest] Stopping camera...');
+    
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach((track) => {
+        track.stop();
+        console.log(`[AttendanceTest] Stopped ${track.kind} track`);
+      });
       setStream(null);
       setCameraReady(false);
+    }
+    
+    // Also clear video srcObject and pause
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.pause();
+      console.log('[AttendanceTest] Video element cleared');
     }
   };
 
@@ -73,8 +99,8 @@ const AttendanceTestPage = () => {
     },
   });
 
-  const handleScan = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  const handleScan = async () => {
+    if (!videoRef.current || !canvasRef.current || !cameraReady) return;
 
     setIsScanning(true);
     setScanResult(null);
@@ -144,17 +170,38 @@ const AttendanceTestPage = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-center">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={handleScan}
-                    disabled={!cameraReady || isScanning}
-                    isLoading={isScanning}
-                    icon={<ScanFace size={20} />}
-                  >
-                    {isScanning ? 'Mengenali Wajah...' : 'Scan Wajah'}
-                  </Button>
+                <div className="flex justify-center gap-3">
+                  {!cameraReady ? (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={startCamera}
+                      icon={<Camera size={20} />}
+                    >
+                      Aktifkan Kamera
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="lg"
+                        onClick={stopCamera}
+                        icon={<X size={20} />}
+                      >
+                        Matikan Kamera
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        onClick={handleScan}
+                        disabled={!cameraReady || isScanning}
+                        isLoading={isScanning}
+                        icon={<ScanFace size={20} />}
+                      >
+                        {isScanning ? 'Mengenali Wajah...' : 'Scan Wajah'}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </CardContent>

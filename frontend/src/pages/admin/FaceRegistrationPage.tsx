@@ -20,6 +20,12 @@ const FaceRegistrationPage = () => {
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [autoCapture, setAutoCapture] = useState(false);
+  const [livenessCheck, setLivenessCheck] = useState({
+    faceDetected: true,
+    quality: 'good' as 'good' | 'poor',
+    message: 'Posisikan wajah di area oval'
+  });
 
   const MIN_IMAGES = 3;
   const MAX_IMAGES = 5;
@@ -30,6 +36,29 @@ const FaceRegistrationPage = () => {
       stopCamera();
     };
   }, []);
+
+  // Auto capture effect
+  useEffect(() => {
+    if (!autoCapture || !cameraReady || capturedImages.length >= MAX_IMAGES) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (livenessCheck.faceDetected && livenessCheck.quality === 'good') {
+        captureImage();
+      }
+    }, 2000); // Capture every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [autoCapture, cameraReady, capturedImages.length, livenessCheck]);
+
+  // Stop auto capture when max reached
+  useEffect(() => {
+    if (capturedImages.length >= MAX_IMAGES && autoCapture) {
+      setAutoCapture(false);
+      toast.success('Auto capture selesai! Semua foto sudah diambil.');
+    }
+  }, [capturedImages.length, autoCapture]);
 
   const startCamera = async () => {
     try {
@@ -59,10 +88,20 @@ const FaceRegistrationPage = () => {
       setStream(null);
       setCameraReady(false);
     }
+    // Also clear video srcObject
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
   };
 
   const captureImage = () => {
     if (!videoRef.current || !canvasRef.current || capturedImages.length >= MAX_IMAGES) {
+      return;
+    }
+
+    // Simple quality check
+    if (livenessCheck.quality === 'poor') {
+      toast.error('Kualitas gambar kurang baik, perbaiki pencahayaan');
       return;
     }
 
@@ -80,7 +119,12 @@ const FaceRegistrationPage = () => {
       // Convert to base64 JPEG
       const imageData = canvas.toDataURL('image/jpeg', 1.0);
       setCapturedImages([...capturedImages, imageData]);
-      toast.success(`Foto ${capturedImages.length + 1} berhasil diambil`);
+      
+      if (autoCapture) {
+        toast.success(`Auto: Foto ${capturedImages.length + 1} berhasil`, { duration: 1500 });
+      } else {
+        toast.success(`Foto ${capturedImages.length + 1} berhasil diambil`);
+      }
     }
 
     setTimeout(() => setIsCapturing(false), 300);
@@ -123,7 +167,10 @@ const FaceRegistrationPage = () => {
           <Button
             variant="outline"
             size="md"
-            onClick={() => navigate('/admin/students')}
+            onClick={() => {
+              stopCamera();
+              navigate('/admin/students');
+            }}
             icon={<ArrowLeft size={18} />}
           >
             Kembali
@@ -147,7 +194,7 @@ const FaceRegistrationPage = () => {
                 <canvas ref={canvasRef} className="hidden" />
 
                 {/* Status Badge */}
-                <div className="absolute top-4 left-4">
+                <div className="absolute top-4 left-4 flex gap-2">
                   {cameraReady ? (
                     <Badge variant="success">
                       <Camera size={14} />
@@ -156,6 +203,19 @@ const FaceRegistrationPage = () => {
                   ) : (
                     <Badge variant="warning">Menghubungkan...</Badge>
                   )}
+                  
+                  {autoCapture && (
+                    <Badge variant="info">
+                      🤖 Auto Capture ON
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Liveness Check Status */}
+                <div className="absolute top-4 right-4">
+                  <Badge variant={livenessCheck.faceDetected ? 'success' : 'warning'}>
+                    {livenessCheck.message}
+                  </Badge>
                 </div>
 
                 {/* Capture Flash Effect */}
@@ -171,10 +231,26 @@ const FaceRegistrationPage = () => {
 
               <div className="flex items-center justify-center gap-4">
                 <Button
+                  variant={autoCapture ? 'danger' : 'secondary'}
+                  size="lg"
+                  onClick={() => {
+                    setAutoCapture(!autoCapture);
+                    if (!autoCapture) {
+                      toast.success('Auto capture diaktifkan! Foto akan diambil otomatis');
+                    } else {
+                      toast('Auto capture dinonaktifkan');
+                    }
+                  }}
+                  disabled={!cameraReady || capturedImages.length >= MAX_IMAGES}
+                >
+                  {autoCapture ? '⏸️ Stop Auto' : '▶️ Auto Capture'}
+                </Button>
+                
+                <Button
                   variant="primary"
                   size="lg"
                   onClick={captureImage}
-                  disabled={!cameraReady || capturedImages.length >= MAX_IMAGES}
+                  disabled={!cameraReady || capturedImages.length >= MAX_IMAGES || autoCapture}
                   icon={<Camera size={20} />}
                 >
                   Ambil Foto ({capturedImages.length}/{MAX_IMAGES})

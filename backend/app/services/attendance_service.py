@@ -322,3 +322,45 @@ class AttendanceService:
                 break
         
         return streak
+
+
+class _AttendanceServiceProxy:
+    """Compatibility proxy to preserve legacy `attendance_service` usage.
+
+    Many existing endpoints import `attendance_service` and call methods
+    that previously accepted a `db` parameter. To avoid refactoring all
+    callers, this proxy instantiates `AttendanceService(db)` internally
+    and forwards calls.
+    """
+
+    def submit_attendance(self, db: Session, user_id: int, confidence: float, image_path: str):
+        svc = AttendanceService(db)
+        return svc.submit_attendance(user_id, confidence, image_path)
+
+    def get_user_attendance_history(self, db: Session, user_id: int, skip: int = 0, limit: int = 50, start_date=None, end_date=None):
+        svc = AttendanceService(db)
+        return svc.get_user_attendance_history(user_id, skip=skip, limit=limit, start_date=start_date, end_date=end_date)
+
+    def get_today_attendance(self, db: Session, user_id: int):
+        svc = AttendanceService(db)
+        return svc.get_today_attendance(user_id)
+
+    def get_user_statistics(self, db: Session, user_id: int, start_date=None, end_date=None):
+        svc = AttendanceService(db)
+        return svc.get_user_statistics(user_id, start_date=start_date, end_date=end_date)
+
+    def get_all_today_attendance(self, db: Session, kelas: str = None):
+        svc = AttendanceService(db)
+        return svc.get_all_today_attendance(kelas=kelas)
+
+    def get_date_statistics(self, db: Session, target_date, kelas: str = None):
+        svc = AttendanceService(db)
+        return svc.get_date_statistics(target_date, kelas=kelas)
+
+    def get_attendance_report(self, db: Session, start_date, end_date, kelas: str = None):
+        svc = AttendanceService(db)
+        return svc.get_attendance_report(start_date, end_date, kelas=kelas)
+
+
+# Export a module-level proxy instance for backwards compatibility
+attendance_service = _AttendanceServiceProxy()

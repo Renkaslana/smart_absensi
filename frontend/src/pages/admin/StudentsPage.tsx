@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
@@ -15,8 +15,10 @@ import {
   ChevronRight,
   Camera,
 } from 'lucide-react';
+import Select from '../../components/ui/Select';
 
 import { adminService } from '../../services/adminService';
+import { EditSiswaModal } from './EditSiswaModal';
 import { ShellHeader } from '../../components/layouts/Shell';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -59,31 +61,55 @@ const StudentsPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+
   // Fetch kelas options
   const { data: kelasOptions } = useQuery({
     queryKey: ['kelas-options'],
     queryFn: () => adminService.getKelasOptions(),
   });
 
+  // prepare options for custom Select (computed after kelasOptions is available)
+  const kelasSelectOptions = useMemo(
+    () => {
+      console.log('[StudentsPage] kelasOptions raw:', kelasOptions);
+      const options = [
+        { value: '', label: 'Semua Kelas' },
+        ...(kelasOptions || []), // Backend already sends { value, label } format
+      ];
+      console.log('[StudentsPage] kelasSelectOptions processed:', options);
+      return options;
+    },
+    [kelasOptions]
+  );
+
+  const faceSelectOptions = useMemo(
+    () => [
+      { value: '', label: 'Semua Status' },
+      { value: 'true', label: 'Sudah Registrasi Wajah' },
+      { value: 'false', label: 'Belum Registrasi Wajah' },
+    ],
+    []
+  );
+
   // Fetch users
   const { data, isLoading, error } = useQuery({
     queryKey: ['users', tab, page, searchQuery, filterKelas, filterFace],
     queryFn: async () => {
       console.log('[StudentsPage] Fetching users:', { tab, page, searchQuery, filterKelas, filterFace });
-      
+
       const result = tab === 'siswa'
         ? await adminService.getStudents({
-            skip: (page - 1) * LIMIT,
-            limit: LIMIT,
-            search: searchQuery || undefined,
-            kelas: filterKelas || undefined,
-            has_face: filterFace,
-          })
+          skip: (page - 1) * LIMIT,
+          limit: LIMIT,
+          search: searchQuery || undefined,
+          kelas: filterKelas || undefined,
+          has_face: filterFace,
+        })
         : await adminService.getTeachers({
-            skip: (page - 1) * LIMIT,
-            limit: LIMIT,
-          });
-      
+          skip: (page - 1) * LIMIT,
+          limit: LIMIT,
+        });
+
       console.log('[StudentsPage] Fetch result:', result);
       return result;
     },
@@ -106,7 +132,7 @@ const StudentsPage = () => {
     },
     onError: (error: any) => {
       console.error('Create error:', error);
-      
+
       // Handle validation errors (422)
       if (error.response?.status === 422) {
         const validationErrors = error.response?.data?.detail;
@@ -123,21 +149,7 @@ const StudentsPage = () => {
     },
   });
 
-  // Update mutation
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<UserFormData> }) =>
-      adminService.updateUser(id, data),
-    onSuccess: () => {
-      toast.success('User berhasil diperbarui');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      setIsEditModalOpen(false);
-      setSelectedUser(null);
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Gagal memperbarui user');
-    },
-  });
+
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -171,14 +183,6 @@ const StudentsPage = () => {
 
   const openEditModal = (user: any) => {
     setSelectedUser(user);
-    setFormData({
-      nim: user.nim,
-      name: user.name,
-      email: user.email,
-      password: '',
-      kelas: user.kelas || '',
-      role: user.role,
-    });
     setIsEditModalOpen(true);
   };
 
@@ -196,23 +200,7 @@ const StudentsPage = () => {
     createMutation.mutate(formData);
   };
 
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser) return;
-    
-    const updateData: any = {
-      nim: formData.nim,
-      name: formData.name,
-      email: formData.email,
-      kelas: formData.kelas,
-    };
-    
-    if (formData.password) {
-      updateData.password = formData.password;
-    }
-    
-    updateMutation.mutate({ id: selectedUser.id, data: updateData });
-  };
+
 
   const handleDelete = () => {
     if (selectedUser) {
@@ -246,11 +234,10 @@ const StudentsPage = () => {
               setTab('siswa');
               setPage(1);
             }}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
-              tab === 'siswa'
-                ? 'border-b-2 border-accent-500 text-accent-600 dark:text-accent-400'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
-            }`}
+            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${tab === 'siswa'
+              ? 'border-b-2 border-accent-500 text-accent-600 dark:text-accent-400'
+              : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
           >
             <Users size={20} />
             <span>Siswa</span>
@@ -260,11 +247,10 @@ const StudentsPage = () => {
               setTab('guru');
               setPage(1);
             }}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
-              tab === 'guru'
-                ? 'border-b-2 border-accent-500 text-accent-600 dark:text-accent-400'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
-            }`}
+            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${tab === 'guru'
+              ? 'border-b-2 border-accent-500 text-accent-600 dark:text-accent-400'
+              : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
           >
             <GraduationCap size={20} />
             <span>Guru</span>
@@ -295,36 +281,39 @@ const StudentsPage = () => {
             {/* Kelas Filter */}
             {tab === 'siswa' && (
               <>
-                <select
-                  value={filterKelas}
-                  onChange={(e) => {
-                    setFilterKelas(e.target.value);
-                    setPage(1);
-                  }}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
-                >
-                  <option value="">Semua Kelas</option>
-                  {kelasOptions?.map((k: any) => (
-                    <option key={k.id} value={k.name}>
-                      {k.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-56">
+                  <select
+                    value={filterKelas}
+                    onChange={(e) => {
+                      setFilterKelas(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  >
+                    {kelasSelectOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                <select
-                  value={filterFace === undefined ? '' : filterFace ? 'true' : 'false'}
-                  onChange={(e) => {
-                    setFilterFace(
-                      e.target.value === '' ? undefined : e.target.value === 'true'
-                    );
-                    setPage(1);
-                  }}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
-                >
-                  <option value="">Semua Status</option>
-                  <option value="true">Sudah Registrasi Wajah</option>
-                  <option value="false">Belum Registrasi Wajah</option>
-                </select>
+                <div className="w-56">
+                  <select
+                    value={filterFace === undefined ? '' : filterFace ? 'true' : 'false'}
+                    onChange={(e) => {
+                      setFilterFace(e.target.value === '' ? undefined : e.target.value === 'true');
+                      setPage(1);
+                    }}
+                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  >
+                    {faceSelectOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </>
             )}
           </div>
@@ -346,7 +335,7 @@ const StudentsPage = () => {
                       </th>
                       {tab === 'siswa' && (
                         <>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                             Kelas
                           </th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
@@ -376,7 +365,7 @@ const StudentsPage = () => {
                         </td>
                         {tab === 'siswa' && (
                           <>
-                            <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+                            <td className="px-4 py-3 text-sm text-neutral-900 dark:text-neutral-100">
                               {user.kelas || '-'}
                             </td>
                             <td className="px-4 py-3">
@@ -544,116 +533,29 @@ const StudentsPage = () => {
               <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Kelas
               </label>
-              <select
-                value={formData.kelas}
-                onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
-                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-              >
-                <option value="">Pilih Kelas</option>
-                {kelasOptions?.map((k: any) => (
-                  <option key={k.id} value={k.name}>
-                    {k.name}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <Select
+                  options={kelasSelectOptions.slice(1)}
+                  value={formData.kelas || ''}
+                  onChange={(val) => setFormData({ ...formData, kelas: val })}
+                  placeholder="Pilih Kelas"
+                />
+              </div>
             </div>
           )}
         </form>
       </Modal>
 
       {/* Edit Modal */}
-      <Modal
+      <EditSiswaModal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit User"
-        description="Perbarui informasi user"
-        size="md"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
-              Batal
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleUpdate}
-              isLoading={updateMutation.isPending}
-            >
-              Simpan Perubahan
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleUpdate} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-              NIM <span className="text-danger-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.nim}
-              onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-              Nama Lengkap <span className="text-danger-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-              Email <span className="text-danger-500">*</span>
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-              Password Baru (kosongkan jika tidak ingin diubah)
-            </label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-              placeholder="Masukkan password baru"
-            />
-          </div>
-
-          {tab === 'siswa' && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                Kelas
-              </label>
-              <select
-                value={formData.kelas}
-                onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
-                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-              >
-                <option value="">Pilih Kelas</option>
-                {kelasOptions?.map((k: any) => (
-                  <option key={k.id} value={k.name}>
-                    {k.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </form>
-      </Modal>
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedUser(null);
+        }}
+        selectedUser={selectedUser}
+        tab={tab}
+      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

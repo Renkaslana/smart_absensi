@@ -15,8 +15,10 @@ from app.api.deps import get_db
 from app.models.user import User
 from app.models.absensi import Absensi
 from app.models.kelas import Kelas
+from app.models.face_encoding import FaceEncoding
 from app.services.face_recognition_service import FaceRecognitionService as FaceService
 from app.services.attendance_service import AttendanceService
+from app.utils.image_processing import decode_base64_image
 
 
 router = APIRouter()
@@ -61,15 +63,50 @@ async def mark_public_attendance(
             # Remove data:image/jpeg;base64, prefix if exists
             image = image.split(",")[1]
         
+        print(f"[PublicAttendance] Image data length: {len(image)}")
         image_data = base64.b64decode(image)
+        print(f"[PublicAttendance] Decoded image size: {len(image_data)} bytes")
+        
+        # Decode image to PIL
+        pil_image = decode_base64_image(image)
+        print(f"[PublicAttendance] PIL Image size: {pil_image.size}")
         
         # Initialize face service
         face_service = FaceService()
         
-        # Recognize face
-        result = face_service.recognize_face(image_data)
+        # Load face encodings from database
+        print(f"[PublicAttendance] Loading face encodings from database...")
+        face_encodings_db = db.query(FaceEncoding).all()
+        print(f"[PublicAttendance] Found {len(face_encodings_db)} face encodings")
         
-        if not result["matched"]:
+        if not face_encodings_db:
+            raise HTTPException(
+                status_code=404,
+                detail="No registered faces in database"
+            )
+        
+        # Deserialize encodings
+        import pickle
+        known_encodings = []
+        user_ids = []
+        
+        for fe in face_encodings_db:
+            try:
+                encoding = pickle.loads(fe.encoding)
+                known_encodings.append(encoding)
+                user_ids.append(fe.user_id)
+            except Exception as e:
+                print(f"[PublicAttendance] Error deserializing encoding for user {fe.user_id}: {e}")
+                continue
+        
+        print(f"[PublicAttendance] Loaded {len(known_encodings)} valid encodings")
+        
+        # Recognize face
+        print(f"[PublicAttendance] Starting face recognition...")
+        result = face_service.recognize_face(pil_image, known_encodings, user_ids)
+        print(f"[PublicAttendance] Face recognition result: {result}")
+        
+        if result is None:
             raise HTTPException(
                 status_code=404,
                 detail="Face not recognized. Please ensure you are registered."
@@ -274,15 +311,38 @@ async def check_face_registration(
         if "," in image:
             image = image.split(",")[1]
         
-        image_data = base64.b64decode(image)
+        # Decode to PIL
+        pil_image = decode_base64_image(image)
         
         # Initialize face service
         face_service = FaceService()
         
-        # Recognize face
-        result = face_service.recognize_face(image_data)
+        # Load face encodings from database
+        face_encodings_db = db.query(FaceEncoding).all()
         
-        if not result["matched"]:
+        if not face_encodings_db:
+            return {
+                "registered": False,
+                "message": "No registered faces in database"
+            }
+        
+        # Deserialize encodings
+        import pickle
+        known_encodings = []
+        user_ids = []
+        
+        for fe in face_encodings_db:
+            try:
+                encoding = pickle.loads(fe.encoding)
+                known_encodings.append(encoding)
+                user_ids.append(fe.user_id)
+            except:
+                continue
+        
+        # Recognize face
+        result = face_service.recognize_face(pil_image, known_encodings, user_ids)
+        
+        if result is None:
             return {
                 "registered": False,
                 "message": "Face not found in system. Please register first."

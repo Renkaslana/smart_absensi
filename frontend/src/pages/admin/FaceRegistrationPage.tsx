@@ -39,10 +39,25 @@ const FaceRegistrationPage = () => {
 
   useEffect(() => {
     startCamera();
+    
     return () => {
+      console.log('[FaceRegistration] Component unmounting, stopping camera...');
+      window.speechSynthesis.cancel(); // 🌙 Stop any ongoing voice feedback
       stopCamera();
     };
   }, []);
+
+  // 🌙 Additional cleanup on beforeunload (browser close/refresh)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      console.log('[FaceRegistration] Page unloading, stopping camera...');
+      window.speechSynthesis.cancel();
+      stopCamera();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [stream]);
 
   // Auto capture effect with REAL liveness detection 🌙
   useEffect(() => {
@@ -95,14 +110,24 @@ const FaceRegistrationPage = () => {
   };
 
   const stopCamera = () => {
+    console.log('[FaceRegistration] stopCamera called');
+    
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      console.log('[FaceRegistration] Stopping media tracks:', stream.getTracks().length);
+      stream.getTracks().forEach((track) => {
+        console.log(`[FaceRegistration] Stopping track: ${track.kind}, enabled: ${track.enabled}`);
+        track.stop();
+      });
       setStream(null);
       setCameraReady(false);
     }
+    
     // Also clear video srcObject
     if (videoRef.current) {
+      console.log('[FaceRegistration] Clearing video srcObject');
       videoRef.current.srcObject = null;
+      videoRef.current.pause();
+      videoRef.current.load(); // Force reload to clear buffer
     }
   };
 
@@ -259,11 +284,11 @@ const FaceRegistrationPage = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${livenessResult.details.blinkCount > 0 ? 'bg-green-400' : 'bg-yellow-400'}`} />
-                        <span>Kedip: {livenessResult.details.blinkCount}x</span>
+                        <span>Mulut: {livenessResult.details.blinkCount}x</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${livenessResult.details.isNeutralPose ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span>Pose: {livenessResult.details.isNeutralPose ? 'Frontal' : 'Miring'}</span>
+                        <span>Gerakan: {livenessResult.details.isNeutralPose ? 'OK' : 'Belum'}</span>
                       </div>
                       <div className="w-full bg-neutral-700 rounded-full h-1.5 mt-2">
                         <div 
@@ -328,7 +353,8 @@ const FaceRegistrationPage = () => {
                     <ul className="text-xs text-accent-700 dark:text-accent-300 space-y-1">
                       <li>• Pastikan pencahayaan cukup terang (tidak gelap/overexposed)</li>
                       <li>• Wajah menghadap kamera langsung (frontal, tidak miring)</li>
-                      <li>• Kedipkan mata saat auto capture aktif</li>
+                      <li>• <strong>Buka mulut (A-O)</strong> saat auto capture aktif</li>
+                      <li>• <strong>Gerakkan kepala kiri → kanan</strong> untuk validasi</li>
                       <li>• Gunakan wajah asli (bukan foto atau layar)</li>
                       <li>• Tahan kamera dengan stabil (hindari blur)</li>
                       <li>• Minimal 3 foto, maksimal 5 foto</li>
@@ -336,8 +362,14 @@ const FaceRegistrationPage = () => {
                     <div className="mt-3 pt-3 border-t border-accent-200 dark:border-accent-700">
                       <p className="text-[10px] text-accent-600 dark:text-accent-400">
                         Sistem menggunakan HOG face detection, blur detection (Laplacian), 
-                        blink detection (EAR), head pose estimation, dan texture analysis (LBP) 
-                        untuk memastikan hanya wajah asli yang dapat didaftarkan.
+                        <strong> mouth open detection (MAR), head movement tracking</strong>, 
+                        dan texture analysis (LBP) untuk memastikan hanya wajah asli yang dapat didaftarkan.
+                        Lebih akurat dan netral untuk pengguna Asia.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
                       </p>
                     </div>
                   </div>

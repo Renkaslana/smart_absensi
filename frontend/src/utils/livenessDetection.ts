@@ -74,6 +74,20 @@ export interface BlinkDetectionState {
   lastBlinkTime: number;
 }
 
+// 🌙 NEW: Mouth open detection state
+export interface MouthOpenDetectionState {
+  isMouthOpen: boolean;
+  openCount: number;
+  lastOpenTime: number;
+}
+
+// 🌙 NEW: Head movement detection state
+export interface HeadMovementState {
+  initialYaw: number | null;
+  hasMoved: boolean;
+  movementDetected: boolean;
+}
+
 // ============================================
 // PHASE 1: FACE DETECTION (HOG)
 // ============================================
@@ -314,6 +328,135 @@ function toGrayscale(imageData: ImageData): Uint8ClampedArray {
 // ============================================
 
 /**
+ * 🌙 Mouth open detection using Mouth Aspect Ratio (MAR)
+ * 
+ * More reliable and culturally neutral than blink detection
+ * Better for Asian users where eye anatomy varies
+ * 
+ * Algorithm: Similar to EAR but for mouth
+ * MAR = (||top - bottom||) / (||left - right||)
+ * 
+ * - Closed mouth: MAR < 0.5
+ * - Open mouth: MAR > 0.7
+ */
+export function detectMouthOpen(
+  landmarks: faceapi.FaceLandmarks68,
+  state: MouthOpenDetectionState
+): MouthOpenDetectionState {
+  const mouth = landmarks.getMouth();
+
+  const MAR = calculateMAR(mouth);
+  const now = Date.now();
+
+  // Detect mouth open start (MAR increases above 0.7)
+  if (MAR > 0.7 && !state.isMouthOpen) {
+    return {
+      isMouthOpen: true,
+      openCount: state.openCount,
+      lastOpenTime: now,
+    };
+  }
+
+  // Mouth open complete (MAR returns to normal)
+  if (MAR < 0.5 && state.isMouthOpen) {
+    return {
+      isMouthOpen: false,
+      openCount: state.openCount + 1,
+      lastOpenTime: now,
+    };
+  }
+
+  return state;
+}
+
+function calculateMAR(mouth: faceapi.Point[]): number {
+  // mouth[0] = left corner, mouth[6] = right corner
+  // mouth[3] = top center, mouth[9] = bottom center
+  
+  // Calculate vertical distance (top to bottom)
+  const vertical1 = euclideanDistance(mouth[2], mouth[10]); // Upper lip to lower lip (left)
+  const vertical2 = euclideanDistance(mouth[4], mouth[8]);  // Upper lip to lower lip (right)
+  const vertical = (vertical1 + vertical2) / 2;
+
+  // Calculate horizontal distance (left to right)
+  const horizontal = euclideanDistance(mouth[0], mouth[6]);
+
+  return vertical / horizontal;
+}
+
+/**
+ * 🌙 Head movement detection (left to right)
+ * 
+ * More reliable than blink for Asian users
+ * Requires user to turn head left → right
+ * 
+ * Algorithm: Track yaw change over time
+ * - Initial yaw recorded
+ * - Detect significant movement (|delta| > 0.15)
+ */
+export function detectHeadMovement(
+  landmarks: faceapi.FaceLandmarks68,
+  state: HeadMovementState
+): HeadMovementState {
+  const pose = calculateHeadPose(landmarks);
+
+  // Initialize on first call
+  if (state.initialYaw === null) {
+    return {
+      initialYaw: pose.yaw,
+      hasMoved: false,
+      movementDetected: false,
+    };
+  }
+
+  // Calculate yaw difference from initial position
+  const yawDelta = Math.abs(pose.yaw - state.initialYaw);
+
+  // Detect significant head movement (> 0.15 or ~15 degrees)
+  if (yawDelta > 0.15 && !state.hasMoved) {
+    return {
+      initialYaw: state.initialYaw,
+      hasMoved: true,
+      movementDetected: true,
+    };
+  }
+
+  return state;
+}
+
+function calculateHeadPose(landmarks: faceapi.FaceLandmarks68): {
+  yaw: number;
+  pitch: number;
+  roll: number;
+} {
+  const nose = landmarks.getNose();
+  const leftEye = landmarks.getLeftEye();
+  const rightEye = landmarks.getRightEye();
+
+  // Calculate eye center
+  const eyeCenter = {
+    x: (leftEye[0].x + rightEye[3].x) / 2,
+    y: (leftEye[0].y + rightEye[3].y) / 2,
+  };
+
+  const noseCenter = nose[3]; // Nose tip
+
+  // Yaw: horizontal deviation (left-right rotation)
+  const yaw = (noseCenter.x - eyeCenter.x) / eyeCenter.x;
+
+  // Pitch: vertical deviation (up-down rotation)
+  const pitch = (noseCenter.y - eyeCenter.y) / eyeCenter.y;
+
+  // Roll: eye line angle (tilt rotation)
+  const roll = Math.atan2(
+    rightEye[3].y - leftEye[0].y,
+    rightEye[3].x - leftEye[0].x
+  );
+
+  return { yaw, pitch, roll };
+}
+
+/**
  * Blink detection using Eye Aspect Ratio (EAR)
  * 
  * Algorithm: Soukupová & Čech (2016)
@@ -321,6 +464,8 @@ function toGrayscale(imageData: ImageData): Uint8ClampedArray {
  * 
  * - Open eye: EAR ≈ 0.25-0.35
  * - Closed eye: EAR < 0.2
+ * 
+ * ⚠️ DEPRECATED: Use detectMouthOpen() instead for better cross-cultural support
  */
 export function detectBlink(
   landmarks: faceapi.FaceLandmarks68,
@@ -385,36 +530,12 @@ export function detectHeadPose(
   roll: number;
   isNeutral: boolean;
 } {
-  const nose = landmarks.getNose();
-  const leftEye = landmarks.getLeftEye();
-  const rightEye = landmarks.getRightEye();
-
-  // Calculate eye center
-  const eyeCenter = {
-    x: (leftEye[0].x + rightEye[3].x) / 2,
-    y: (leftEye[0].y + rightEye[3].y) / 2,
-  };
-
-  const noseCenter = nose[3]; // Nose tip
-
-  // Yaw: horizontal deviation (left-right rotation)
-  const yaw = (noseCenter.x - eyeCenter.x) / eyeCenter.x;
-
-  // Pitch: vertical deviation (up-down rotation)
-  const pitch = (noseCenter.y - eyeCenter.y) / eyeCenter.y;
-
-  // Roll: eye line angle (tilt rotation)
-  const roll = Math.atan2(
-    rightEye[3].y - leftEye[0].y,
-    rightEye[3].x - leftEye[0].x
-  );
+  const pose = calculateHeadPose(landmarks);
 
   return {
-    yaw,
-    pitch,
-    roll,
+    ...pose,
     isNeutral:
-      Math.abs(yaw) < 0.15 && Math.abs(pitch) < 0.15 && Math.abs(roll) < 0.2,
+      Math.abs(pose.yaw) < 0.15 && Math.abs(pose.pitch) < 0.15 && Math.abs(pose.roll) < 0.2,
   };
 }
 
@@ -589,11 +710,12 @@ export function aggregateLivenessResult(
       phase = 'liveness';
       progress = 50;
 
+      // 🆕 Updated messages for mouth open + head movement
       if (livenessResult.blinkCount === 0) {
-        message = 'Kedipkan mata Anda...';
+        message = 'Buka mulut Anda (A-O)...';
         progress = 60;
       } else if (!livenessResult.isNeutralPose) {
-        message = 'Hadapkan wajah ke depan';
+        message = 'Gerakkan kepala kiri → kanan';
         progress = 70;
       } else if (livenessResult.isScreen) {
         message = 'Terdeteksi layar, gunakan wajah asli';

@@ -3,6 +3,9 @@
  * 
  * Real-time liveness detection for face registration
  * Integrates Phase 1-3 checks with React lifecycle
+ * 
+ * 🆕 Uses mouth open + head movement instead of blink detection
+ * More reliable and culturally neutral for Asian users
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,7 +14,8 @@ import {
   detectFace,
   captureFrame,
   checkQuality,
-  detectBlink,
+  detectMouthOpen,
+  detectHeadMovement,
   detectHeadPose,
   detectScreenReflection,
   analyzeTexture,
@@ -20,7 +24,8 @@ import {
 } from '../utils/livenessDetection';
 import type {
   CompleteLivenessResult,
-  BlinkDetectionState,
+  MouthOpenDetectionState,
+  HeadMovementState,
   FaceDetectionResult,
   QualityCheckResult,
   LivenessCheckResult,
@@ -60,11 +65,18 @@ export function useLivenessDetection(
 
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Persistent state for blink detection
-  const blinkStateRef = useRef<BlinkDetectionState>({
-    isBlinking: false,
-    blinkCount: 0,
-    lastBlinkTime: 0,
+  // 🆕 Persistent state for mouth open detection
+  const mouthStateRef = useRef<MouthOpenDetectionState>({
+    isMouthOpen: false,
+    openCount: 0,
+    lastOpenTime: 0,
+  });
+
+  // 🆕 Persistent state for head movement detection
+  const headMovementStateRef = useRef<HeadMovementState>({
+    initialYaw: null,
+    hasMoved: false,
+    movementDetected: false,
   });
 
   // Track last message for voice feedback (avoid repeating)
@@ -136,10 +148,16 @@ export function useLivenessDetection(
 
         // Phase 3: Liveness Detection
         if (faceResult.landmarks) {
-          // Blink detection
-          blinkStateRef.current = detectBlink(
+          // 🆕 Mouth open detection (replaces blink)
+          mouthStateRef.current = detectMouthOpen(
             faceResult.landmarks,
-            blinkStateRef.current
+            mouthStateRef.current
+          );
+
+          // 🆕 Head movement detection (left → right)
+          headMovementStateRef.current = detectHeadMovement(
+            faceResult.landmarks,
+            headMovementStateRef.current
           );
 
           // Head pose detection
@@ -153,8 +171,8 @@ export function useLivenessDetection(
 
           const livenessResult: LivenessCheckResult = {
             isRealFace: textureResult.isRealFace,
-            blinkCount: blinkStateRef.current.blinkCount,
-            isNeutralPose: headPose.isNeutral,
+            blinkCount: mouthStateRef.current.openCount, // Now represents mouth opens
+            isNeutralPose: headPose.isNeutral || headMovementStateRef.current.movementDetected,
             isScreen: screenResult.isScreen,
             textureScore: textureResult.textureScore,
             headPose: {
@@ -189,18 +207,25 @@ export function useLivenessDetection(
     return () => clearInterval(interval);
   }, [enabled, videoRef, checkInterval, voiceFeedback, isProcessing]);
 
-  // Reset blink count
-  const resetBlinkCount = () => {
-    blinkStateRef.current = {
-      isBlinking: false,
-      blinkCount: 0,
-      lastBlinkTime: 0,
+  // Reset mouth + head movement count
+  const resetLivenessActions = () => {
+    mouthStateRef.current = {
+      isMouthOpen: false,
+      openCount: 0,
+      lastOpenTime: 0,
+    };
+    headMovementStateRef.current = {
+      initialYaw: null,
+      hasMoved: false,
+      movementDetected: false,
     };
   };
 
   return {
     result,
     isProcessing,
-    resetBlinkCount,
+    resetLivenessActions,
+    // Legacy alias for backwards compatibility
+    resetBlinkCount: resetLivenessActions,
   };
 }

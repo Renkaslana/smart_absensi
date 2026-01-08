@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   ArrowLeft,
   User,
@@ -13,45 +15,79 @@ import {
   XCircle,
   Clock,
   TrendingUp,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Loader2
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { adminService } from '../../services/adminService';
 
 const StudentDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Mock student data
-  const student = {
-    id: id || '1',
-    name: 'Demo Student',
-    nim: '23215030',
-    email: 'demo@student.com',
-    phone: '+62 812-3456-7890',
-    birthDate: '2003-05-15',
-    address: 'Jakarta Selatan, Indonesia',
-    kelas: 'PCD-A',
-    semester: '5',
-    hasFace: true,
-    faceImages: 3,
-    totalAttendance: 45,
-    presentCount: 42,
-    lateCount: 2,
-    absentCount: 1,
-    avgConfidence: 94.5,
-    lastAttendance: '2025-01-08 08:15'
-  };
+  // Fetch student details from backend
+  const { data: student, isLoading: loadingStudent } = useQuery({
+    queryKey: ['student-detail', id],
+    queryFn: () => adminService.getUserById(Number(id)),
+    enabled: !!id,
+    onError: (error: any) => {
+      toast.error('Gagal memuat data siswa');
+      console.error('Load student error:', error);
+    },
+  });
 
-  const attendanceHistory = [
-    { date: 'Jan 8', status: 'present', time: '08:15', confidence: 95.2 },
-    { date: 'Jan 7', status: 'present', time: '08:10', confidence: 93.8 },
-    { date: 'Jan 6', status: 'late', time: '08:35', confidence: 91.5 },
-    { date: 'Jan 5', status: 'present', time: '08:12', confidence: 96.1 },
-    { date: 'Jan 4', status: 'present', time: '08:08', confidence: 94.7 },
-    { date: 'Jan 3', status: 'absent', time: '-', confidence: 0 },
-    { date: 'Jan 2', status: 'present', time: '08:14', confidence: 92.3 },
-  ];
+  // Fetch attendance history
+  const { data: attendanceData, isLoading: loadingHistory } = useQuery({
+    queryKey: ['student-attendance', id],
+    queryFn: () => adminService.getUserAttendanceHistory(Number(id), { limit: 30 }),
+    enabled: !!id,
+  });
+
+  const isLoading = loadingStudent || loadingHistory;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+          <p className="text-gray-600">Memuat data siswa...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!student) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-xl text-gray-600 mb-4">Data siswa tidak ditemukan</p>
+        <button
+          onClick={() => navigate('/admin/students')}
+          className="px-4 py-2 bg-blue-500 text-white rounded-xl"
+        >
+          Kembali
+        </button>
+      </div>
+    );
+  }
+
+  // Process attendance history for chart
+  const monthlyData = [];
+  if (attendanceData?.items) {
+    // Group by month
+    const monthGroups: Record<string, number> = {};
+    attendanceData.items.forEach((att: any) => {
+      const monthKey = new Date(att.date).toLocaleDateString('id-ID', { month: 'short' });
+      monthGroups[monthKey] = (monthGroups[monthKey] || 0) + 1;
+    });
+    
+    Object.entries(monthGroups).forEach(([month, count]) => {
+      monthlyData.push({ month, attendance: count });
+    });
+  }
+
+  // Recent attendance (last 7 days)
+  const recentAttendance = attendanceData?.items?.slice(0, 7) || [];
 
   const monthlyTrend = [
     { month: 'Aug', present: 18, late: 1, absent: 1 },
@@ -101,7 +137,7 @@ const StudentDetailPage = () => {
                 <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-5xl font-bold shadow-2xl border-4 border-white">
                   {student.name.charAt(0)}
                 </div>
-                {student.hasFace && (
+                {student.has_face && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -126,27 +162,17 @@ const StudentDetailPage = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Email</p>
-                      <p className="text-sm font-semibold text-gray-900">{student.email}</p>
+                      <p className="text-sm font-semibold text-gray-900">{student.email || 'Belum diisi'}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <User className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Telepon</p>
-                      <p className="text-sm font-semibold text-gray-900">{student.phone}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Tanggal Lahir</p>
-                      <p className="text-sm font-semibold text-gray-900">{student.birthDate}</p>
+                      <p className="text-xs text-gray-500">Status</p>
+                      <p className="text-sm font-semibold text-gray-900">{student.is_active ? 'Aktif' : 'Nonaktif'}</p>
                     </div>
                   </div>
 
@@ -156,17 +182,7 @@ const StudentDetailPage = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Kelas</p>
-                      <p className="text-sm font-semibold text-gray-900">{student.kelas} - Semester {student.semester}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-pink-100 flex items-center justify-center">
-                      <MapPin className="w-5 h-5 text-pink-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Alamat</p>
-                      <p className="text-sm font-semibold text-gray-900">{student.address}</p>
+                      <p className="text-sm font-semibold text-gray-900">{student.kelas || 'Belum diisi'}</p>
                     </div>
                   </div>
 
@@ -176,7 +192,17 @@ const StudentDetailPage = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Face Images</p>
-                      <p className="text-sm font-semibold text-gray-900">{student.faceImages} foto</p>
+                      <p className="text-sm font-semibold text-gray-900">{student.encodings_count || 0} foto</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                      <TrendingUp className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Streak</p>
+                      <p className="text-sm font-semibold text-gray-900">{student.current_streak || 0} hari</p>
                     </div>
                   </div>
                 </div>
@@ -197,9 +223,9 @@ const StudentDetailPage = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-100 text-sm mb-1">Hadir</p>
-                  <p className="text-4xl font-bold">{student.presentCount}</p>
-                  <p className="text-green-100 text-xs mt-2">{attendanceRate}% attendance</p>
+                  <p className="text-green-100 text-sm mb-1">Total Hadir</p>
+                  <p className="text-4xl font-bold">{student.total_attendance || 0}</p>
+                  <p className="text-green-100 text-xs mt-2">{student.attendance_rate?.toFixed(1) || 0}% attendance rate</p>
                 </div>
                 <CheckCircle className="w-12 h-12 opacity-80" />
               </div>
@@ -212,15 +238,15 @@ const StudentDetailPage = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-yellow-500 to-orange-600 text-white">
+          <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-yellow-100 text-sm mb-1">Terlambat</p>
-                  <p className="text-4xl font-bold">{student.lateCount}</p>
-                  <p className="text-yellow-100 text-xs mt-2">{((student.lateCount / student.totalAttendance) * 100).toFixed(1)}% of total</p>
+                  <p className="text-blue-100 text-sm mb-1">Streak</p>
+                  <p className="text-4xl font-bold">{student.current_streak || 0}</p>
+                  <p className="text-blue-100 text-xs mt-2">hari berturut-turut</p>
                 </div>
-                <Clock className="w-12 h-12 opacity-80" />
+                <TrendingUp className="w-12 h-12 opacity-80" />
               </div>
             </CardContent>
           </Card>
@@ -231,15 +257,15 @@ const StudentDetailPage = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-red-500 to-rose-600 text-white">
+          <Card className="border-0 shadow-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-red-100 text-sm mb-1">Tidak Hadir</p>
-                  <p className="text-4xl font-bold">{student.absentCount}</p>
-                  <p className="text-red-100 text-xs mt-2">{((student.absentCount / student.totalAttendance) * 100).toFixed(1)}% of total</p>
+                  <p className="text-purple-100 text-sm mb-1">Face Images</p>
+                  <p className="text-4xl font-bold">{student.encodings_count || 0}</p>
+                  <p className="text-purple-100 text-xs mt-2">foto terdaftar</p>
                 </div>
-                <XCircle className="w-12 h-12 opacity-80" />
+                <Camera className="w-12 h-12 opacity-80" />
               </div>
             </CardContent>
           </Card>
@@ -250,15 +276,14 @@ const StudentDetailPage = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+          <Card className="border-0 shadow-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm mb-1">Avg Confidence</p>
-                  <p className="text-4xl font-bold">{student.avgConfidence}%</p>
-                  <p className="text-blue-100 text-xs mt-2">Face recognition</p>
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-orange-100 text-sm mb-2">Status</p>
+                  <p className="text-3xl font-bold">{student.is_active ? 'Aktif' : 'Nonaktif'}</p>
+                  <p className="text-orange-100 text-xs mt-2">Account status</p>
                 </div>
-                <TrendingUp className="w-12 h-12 opacity-80" />
               </div>
             </CardContent>
           </Card>
@@ -275,19 +300,20 @@ const StudentDetailPage = () => {
         >
           <Card className="shadow-xl border-0">
             <CardHeader className="border-b border-gray-100">
-              <CardTitle className="text-xl">Tren Kehadiran Bulanan</CardTitle>
+              <CardTitle className="text-xl">Tren Kehadiran</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyTrend}>
-                    <defs>
-                      <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              {monthlyData.length > 0 ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={monthlyData}>
+                      <defs>
+                        <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis dataKey="month" stroke="#9CA3AF" />
                     <YAxis stroke="#9CA3AF" />
                     <Tooltip
@@ -298,10 +324,18 @@ const StudentDetailPage = () => {
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                       }}
                     />
-                    <Area type="monotone" dataKey="present" stroke="#10B981" strokeWidth={3} fill="url(#colorPresent)" />
+                    <Area type="monotone" dataKey="attendance" stroke="#10B981" strokeWidth={3} fill="url(#colorPresent)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <BarChart3 className="w-16 h-16 mx-auto mb-2 opacity-50" />
+                    <p>Belum ada data</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -317,76 +351,65 @@ const StudentDetailPage = () => {
               <CardTitle className="text-xl">Riwayat Kehadiran Terkini</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {attendanceHistory.map((record, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.8 + index * 0.05 }}
-                    className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        record.status === 'present' ? 'bg-green-100' :
-                        record.status === 'late' ? 'bg-yellow-100' : 'bg-red-100'
-                      }`}>
-                        {record.status === 'present' ? <CheckCircle className="w-5 h-5 text-green-600" /> :
-                         record.status === 'late' ? <Clock className="w-5 h-5 text-yellow-600" /> :
-                         <XCircle className="w-5 h-5 text-red-600" />}
+              {recentAttendance.length > 0 ? (
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {recentAttendance.map((record: any, index: number) => (
+                    <motion.div
+                      key={record.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.8 + index * 0.05 }}
+                      className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          record.status === 'hadir' ? 'bg-green-100' : record.status === 'terlambat' ? 'bg-yellow-100' : 'bg-red-100'
+                        }`}>
+                          {record.status === 'hadir' ? (
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          ) : record.status === 'terlambat' ? (
+                            <Clock className="w-5 h-5 text-yellow-600" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-red-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {new Date(record.date).toLocaleDateString('id-ID', { 
+                              day: 'numeric', 
+                              month: 'short', 
+                              year: 'numeric' 
+                            })}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(record.timestamp).toLocaleTimeString('id-ID', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{record.date}</p>
-                        <p className="text-xs text-gray-500">{record.time}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">{record.confidence?.toFixed(1)}%</p>
+                        <p className="text-xs text-gray-500">confidence</p>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-semibold ${
-                        record.status === 'present' ? 'text-green-600' :
-                        record.status === 'late' ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
-                        {record.status === 'present' ? 'Hadir' :
-                         record.status === 'late' ? 'Terlambat' : 'Tidak Hadir'}
-                      </p>
-                      {record.confidence > 0 && (
-                        <p className="text-xs text-gray-500">{record.confidence}% confidence</p>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <Calendar className="w-16 h-16 mx-auto mb-2 opacity-50" />
+                    <p>Belum ada riwayat</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
-      {/* Face Images */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9 }}
-      >
-        <Card className="shadow-xl border-0">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-xl">Face Recognition Images</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[1, 2, 3].map((img) => (
-                <div
-                  key={img}
-                  className="aspect-square rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-gray-300 hover:border-blue-500 transition-colors"
-                >
-                  <div className="text-center">
-                    <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Face Image {img}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* Face Images - Removed mockup, can be added later when images are accessible */}
     </motion.div>
   );
 };

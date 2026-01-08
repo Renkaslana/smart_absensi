@@ -8,21 +8,32 @@ import {
   Plus,
   Search,
   Trash2,
-  Eye,
+  Edit,
   UserCheck,
   UserX,
   ChevronLeft,
   ChevronRight,
+  Camera,
 } from 'lucide-react';
 
 import { adminService } from '../../services/adminService';
 import { ShellHeader } from '../../components/layouts/Shell';
-import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Feedback';
 import { SkeletonTable } from '../../components/ui/Skeleton';
+import { Modal, ConfirmDialog } from '../../components/ui/Modal';
 
 const LIMIT = 10;
+
+interface UserFormData {
+  nim: string;
+  name: string;
+  email: string;
+  password: string;
+  kelas?: string;
+  role: 'user' | 'admin';
+}
 
 const StudentsPage = () => {
   const [tab, setTab] = useState<'siswa' | 'guru'>('siswa');
@@ -30,6 +41,20 @@ const StudentsPage = () => {
   const [filterKelas, setFilterKelas] = useState('');
   const [filterFace, setFilterFace] = useState<boolean | undefined>();
   const [page, setPage] = useState(1);
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  const [formData, setFormData] = useState<UserFormData>({
+    nim: '',
+    name: '',
+    email: '',
+    password: '',
+    kelas: '',
+    role: 'user',
+  });
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -58,22 +83,120 @@ const StudentsPage = () => {
           }),
   });
 
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data: UserFormData) =>
+      tab === 'siswa' ? adminService.createStudent(data) : adminService.createTeacher(data),
+    onSuccess: () => {
+      toast.success(`${tab === 'siswa' ? 'Siswa' : 'Guru'} berhasil ditambahkan`);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsCreateModalOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Gagal menambahkan user');
+    },
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<UserFormData> }) =>
+      adminService.updateUser(id, data),
+    onSuccess: () => {
+      toast.success('User berhasil diperbarui');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsEditModalOpen(false);
+      setSelectedUser(null);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Gagal memperbarui user');
+    },
+  });
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (id: number) => adminService.deleteUser(id),
     onSuccess: () => {
       toast.success('User berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsDeleteDialogOpen(false);
+      setSelectedUser(null);
     },
     onError: () => toast.error('Gagal menghapus user'),
   });
 
   const totalPages = data ? Math.ceil(data.total / LIMIT) : 1;
 
-  const handleDelete = (id: number, name: string) => {
-    if (window.confirm(`Hapus ${name}?`)) {
-      deleteMutation.mutate(id);
+  const resetForm = () => {
+    setFormData({
+      nim: '',
+      name: '',
+      email: '',
+      password: '',
+      kelas: '',
+      role: 'user',
+    });
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsCreateModalOpen(true);
+  };
+
+  const openEditModal = (user: any) => {
+    setSelectedUser(user);
+    setFormData({
+      nim: user.nim,
+      name: user.name,
+      email: user.email,
+      password: '',
+      kelas: user.kelas || '',
+      role: user.role,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const openDeleteDialog = (user: any) => {
+    setSelectedUser(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.nim || !formData.name || !formData.email || !formData.password) {
+      toast.error('Semua field harus diisi');
+      return;
     }
+    createMutation.mutate(formData);
+  };
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    
+    const updateData: any = {
+      nim: formData.nim,
+      name: formData.name,
+      email: formData.email,
+      kelas: formData.kelas,
+    };
+    
+    if (formData.password) {
+      updateData.password = formData.password;
+    }
+    
+    updateMutation.mutate({ id: selectedUser.id, data: updateData });
+  };
+
+  const handleDelete = () => {
+    if (selectedUser) {
+      deleteMutation.mutate(selectedUser.id);
+    }
+  };
+
+  const handleFaceRegistration = (userId: number) => {
+    navigate(`/admin/students/${userId}/face-registration`);
   };
 
   return (
@@ -83,11 +206,7 @@ const StudentsPage = () => {
         title="Manajemen Pengguna"
         description="Kelola data siswa dan guru secara terpusat"
         actions={
-          <Button
-            size="md"
-            onClick={() => navigate('/admin/students/new')}
-            icon={<Plus size={18} />}
-          >
+          <Button size="md" onClick={openCreateModal} icon={<Plus size={18} />}>
             Tambah {tab === 'siswa' ? 'Siswa' : 'Guru'}
           </Button>
         }
@@ -187,7 +306,7 @@ const StudentsPage = () => {
 
           {/* Table */}
           {isLoading ? (
-            <SkeletonTable rows={5} columns={5} />
+            <SkeletonTable rows={5} columns={6} />
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -251,26 +370,32 @@ const StudentsPage = () => {
                           </>
                         )}
                         <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
-                          {user.email || '-'}
+                          {user.email}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {tab === 'siswa' && !user.has_face && (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => handleFaceRegistration(user.id)}
+                                icon={<Camera size={16} />}
+                              >
+                                Daftar Wajah
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => navigate(`/admin/students/${user.id}`)}
-                              icon={<Eye size={16} />}
-                            >
-                              Detail
-                            </Button>
+                              onClick={() => openEditModal(user)}
+                              icon={<Edit size={16} />}
+                            />
                             <Button
                               size="sm"
                               variant="danger"
-                              onClick={() => handleDelete(user.id, user.name)}
+                              onClick={() => openDeleteDialog(user)}
                               icon={<Trash2 size={16} />}
-                            >
-                              Hapus
-                            </Button>
+                            />
                           </div>
                         </td>
                       </tr>
@@ -280,38 +405,30 @@ const StudentsPage = () => {
               </div>
 
               {/* Pagination */}
-              <div className="mt-6 flex items-center justify-between">
+              <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  Menampilkan{' '}
-                  <span className="font-semibold">
-                    {((page - 1) * LIMIT) + 1}
-                  </span>{' '}
-                  -{' '}
-                  <span className="font-semibold">
-                    {Math.min(page * LIMIT, data?.total || 0)}
-                  </span>{' '}
-                  dari <span className="font-semibold">{data?.total || 0}</span>
+                  Menampilkan {(page - 1) * LIMIT + 1} -{' '}
+                  {Math.min(page * LIMIT, data?.total || 0)} dari {data?.total || 0} data
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => setPage(page - 1)}
                     disabled={page === 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
                     icon={<ChevronLeft size={16} />}
                   >
                     Sebelumnya
                   </Button>
-                  <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Halaman {page} dari {totalPages}
+                  <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                    Hal {page} dari {totalPages}
                   </span>
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => setPage(page + 1)}
+                    disabled={page === totalPages}
                     icon={<ChevronRight size={16} />}
-                    iconPosition="right"
                   >
                     Selanjutnya
                   </Button>
@@ -321,6 +438,210 @@ const StudentsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Create Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title={`Tambah ${tab === 'siswa' ? 'Siswa' : 'Guru'} Baru`}
+        description="Isi data lengkap untuk menambahkan user baru"
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleCreate}
+              isLoading={createMutation.isPending}
+            >
+              Simpan
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              NIM <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.nim}
+              onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Masukkan NIM"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Nama Lengkap <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Masukkan nama lengkap"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Email <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="contoh@email.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Password <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Minimal 6 karakter"
+            />
+          </div>
+
+          {tab === 'siswa' && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Kelas
+              </label>
+              <select
+                value={formData.kelas}
+                onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              >
+                <option value="">Pilih Kelas</option>
+                {kelasOptions?.map((k: any) => (
+                  <option key={k.id} value={k.name}>
+                    {k.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </form>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit User"
+        description="Perbarui informasi user"
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleUpdate}
+              isLoading={updateMutation.isPending}
+            >
+              Simpan Perubahan
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdate} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              NIM <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.nim}
+              onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Nama Lengkap <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Email <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Password Baru (kosongkan jika tidak ingin diubah)
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              placeholder="Masukkan password baru"
+            />
+          </div>
+
+          {tab === 'siswa' && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Kelas
+              </label>
+              <select
+                value={formData.kelas}
+                onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              >
+                <option value="">Pilih Kelas</option>
+                {kelasOptions?.map((k: any) => (
+                  <option key={k.id} value={k.name}>
+                    {k.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        title="Hapus User"
+        description={`Apakah Anda yakin ingin menghapus ${selectedUser?.name}? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 };

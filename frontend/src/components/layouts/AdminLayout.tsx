@@ -1,100 +1,80 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Shell } from './Shell';
+import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarItem } from './Sidebar';
+import { Topbar } from './Topbar';
 import { useAuthStore } from '../../stores/authStore';
-import { toast } from 'react-hot-toast';
-import { 
-  LayoutDashboard, 
-  Users, 
-  ClipboardCheck, 
-  School, 
-  Settings, 
+import { useUIStore } from '../../stores/uiStore';
+import {
+  LayoutDashboard,
+  Users,
+  School,
+  ClipboardList,
+  Settings,
   LogOut,
-  Camera
 } from 'lucide-react';
-import { Shell, ShellContent } from './Shell';
-import { 
-  SidebarHeader, 
-  SidebarContent, 
-  SidebarFooter, 
-  SidebarGroup, 
-  SidebarItem 
-} from './Sidebar';
 
 const AdminLayout = () => {
-  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuthStore();
+  const sidebarCollapsed = useUIStore((state) => state.sidebarCollapsed);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success('Logout berhasil');
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast.error('Gagal logout');
-    }
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
-  const mainMenuItems = [
+  const menuItems = [
     {
+      icon: <LayoutDashboard size={20} />,
       label: 'Dashboard',
       path: '/admin/dashboard',
-      icon: <LayoutDashboard size={20} />,
     },
     {
-      label: 'Manajemen Siswa',
-      path: '/admin/students',
       icon: <Users size={20} />,
+      label: 'Siswa & Guru',
+      path: '/admin/students',
     },
     {
-      label: 'Manajemen Kelas',
-      path: '/admin/classrooms',
       icon: <School size={20} />,
+      label: 'Kelas',
+      path: '/admin/classrooms',
     },
     {
-      label: 'Laporan Kehadiran',
+      icon: <ClipboardList size={20} />,
+      label: 'Kehadiran',
       path: '/admin/attendance',
-      icon: <ClipboardCheck size={20} />,
     },
-  ];
-
-  const systemMenuItems = [
     {
+      icon: <Settings size={20} />,
       label: 'Pengaturan',
       path: '/admin/settings',
-      icon: <Settings size={20} />,
     },
   ];
 
   const sidebar = (
-    <>
+    <Sidebar collapsed={sidebarCollapsed}>
       <SidebarHeader>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-accent-400 to-accent-600 text-white">
-            <Camera size={24} />
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-bold text-sm">FC</span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-white">FahrenCenter</span>
-            <span className="text-xs text-neutral-300">Smart Attendance</span>
-          </div>
+          {!sidebarCollapsed && (
+            <div>
+              <p className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
+                FahrenCenter
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                Admin Portal
+              </p>
+            </div>
+          )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup label="Main Menu">
-          {mainMenuItems.map((item) => (
-            <SidebarItem
-              key={item.path}
-              icon={item.icon}
-              label={item.label}
-              active={location.pathname === item.path}
-              onClick={() => navigate(item.path)}
-            />
-          ))}
-        </SidebarGroup>
-
-        <SidebarGroup label="System">
-          {systemMenuItems.map((item) => (
+        <SidebarGroup label="Menu Utama">
+          {menuItems.map((item) => (
             <SidebarItem
               key={item.path}
               icon={item.icon}
@@ -107,33 +87,42 @@ const AdminLayout = () => {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center gap-3 mb-3 px-2 py-2 rounded-lg bg-white/5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-accent-400 to-accent-600 text-sm font-bold text-white">
-            {user?.name?.charAt(0).toUpperCase() || 'A'}
+        <div className="p-4 border-t border-neutral-200 dark:border-neutral-700">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-500 to-accent-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-sm">
+                {user?.name?.[0] || 'A'}
+              </span>
+            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50 truncate">
+                  {user?.name}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                  {user?.email}
+                </p>
+              </div>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
-              {user?.name || 'Admin'}
-            </p>
-            <p className="text-xs text-neutral-300 truncate">Administrator</p>
-          </div>
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-danger-600 dark:text-danger-400 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors ${
+              sidebarCollapsed ? 'justify-center' : ''
+            }`}
+            title="Logout"
+          >
+            <LogOut size={18} />
+            {!sidebarCollapsed && <span>Logout</span>}
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-neutral-100 transition-colors hover:bg-danger-500 hover:text-white"
-        >
-          <LogOut size={18} />
-          <span>Logout</span>
-        </button>
       </SidebarFooter>
-    </>
+    </Sidebar>
   );
 
   return (
-    <Shell sidebar={sidebar}>
-      <ShellContent>
-        <Outlet />
-      </ShellContent>
+    <Shell sidebar={sidebar} topbar={<Topbar />}>
+      <Outlet />
     </Shell>
   );
 };

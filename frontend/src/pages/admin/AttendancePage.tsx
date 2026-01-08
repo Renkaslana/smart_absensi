@@ -1,45 +1,36 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
-import { 
-  Calendar, 
-  Download, 
-  Filter, 
-  Search, 
-  CheckCircle, 
+import { toast } from 'react-hot-toast';
+import {
+  Calendar,
+  Download,
+  Search,
+  CheckCircle,
   XCircle,
   Clock,
   TrendingUp,
   Users,
-  BarChart3
+  BarChart3,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { adminService } from '../../services/adminService';
 
-interface AttendanceRecord {
-  id: number;
-  studentName: string;
-  nim: string;
-  date: string;
-  time: string;
-  status: 'present' | 'late' | 'absent';
-  confidence: number;
-}
+import { adminService } from '../../services/adminService';
+import { ShellHeader } from '../../components/layouts/Shell';
+import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { MetricCard } from '../../components/ui/MetricCard';
+import { Badge } from '../../components/ui/Feedback';
+import { SkeletonCard, SkeletonTable } from '../../components/ui/Skeleton';
 
 const AttendancePage = () => {
   const [dateFilter, setDateFilter] = useState('today');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Initialize date range based on filter
   useEffect(() => {
     const today = new Date();
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
-    
+
     switch (dateFilter) {
       case 'today':
         setStartDate(formatDate(today));
@@ -60,44 +51,38 @@ const AttendancePage = () => {
     }
   }, [dateFilter]);
 
-  // Fetch attendance report from backend
-  const { data: reportData, isLoading, refetch } = useQuery({
+  const { data: reportData, isLoading } = useQuery({
     queryKey: ['attendance-report', startDate, endDate],
-    queryFn: () => adminService.getAttendanceReport({
-      start_date: startDate,
-      end_date: endDate,
-    }),
+    queryFn: () =>
+      adminService.getAttendanceReport({
+        start_date: startDate,
+        end_date: endDate,
+      }),
     enabled: !!startDate && !!endDate,
   });
 
-  // Filter attendance list based on search and status
-  const filteredAttendance = reportData?.student_breakdown?.filter((record: any) => {
-    const matchesSearch = 
-      record.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.nim.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesSearch;
-  }) || [];
+  const filteredAttendance =
+    reportData?.student_breakdown?.filter((record: any) =>
+      searchQuery
+        ? record.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          record.nim.toLowerCase().includes(searchQuery.toLowerCase())
+        : true
+    ) || [];
 
-  // Calculate statistics
-  const stats = {
-    totalPresent: reportData?.overview?.by_status?.hadir || 0,
-    totalLate: reportData?.overview?.by_status?.terlambat || 0,
-    totalAbsent:
-      (reportData?.overview?.total_students || 0) -
-      (reportData?.overview?.unique_users || 0),
-    avgConfidence: 92.9,
-  };
+  const totalPresent = reportData?.overview?.by_status?.hadir || 0;
+  const totalLate = reportData?.overview?.by_status?.terlambat || 0;
+  const totalStudents = reportData?.overview?.total_students || 0;
+  const uniqueUsers = reportData?.overview?.unique_users || 0;
+  const totalAbsent = totalStudents - uniqueUsers;
+  const attendanceRate = totalStudents > 0 ? Math.round((uniqueUsers / totalStudents) * 100) : 0;
 
-
-  // Export to CSV
   const handleExport = async () => {
     try {
       const blob = await adminService.exportAttendanceCSV({
         start_date: startDate,
         end_date: endDate,
       });
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -106,7 +91,7 @@ const AttendancePage = () => {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       toast.success('Laporan berhasil diexport!');
     } catch (error) {
       console.error('Export error:', error);
@@ -114,305 +99,201 @@ const AttendancePage = () => {
     }
   };
 
-  // Weekly data for chart (would need to be processed from backend data)
-  const weeklyData = [
-    { day: 'Mon', present: 45, late: 3, absent: 2 },
-    { day: 'Tue', present: 47, late: 2, absent: 1 },
-    { day: 'Wed', present: 44, late: 4, absent: 2 },
-    { day: 'Thu', present: 48, late: 1, absent: 1 },
-    { day: 'Fri', present: 46, late: 3, absent: 1 },
-  ];
-    
-
-  const getStatusBadge = (status: string) => {
-    const badges = {
-      present: 'bg-green-100 text-green-700',
-      late: 'bg-yellow-100 text-yellow-700',
-      absent: 'bg-red-100 text-red-700'
-    };
-    return badges[status as keyof typeof badges] || badges.present;
-  };
-
-  const getStatusIcon = (status: string) => {
-    if (status === 'present') return <CheckCircle className="w-4 h-4" />;
-    if (status === 'late') return <Clock className="w-4 h-4" />;
-    return <XCircle className="w-4 h-4" />;
-  };
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
+      <ShellHeader
+        title="Laporan Kehadiran"
+        description="Monitor dan analisis data kehadiran siswa"
+        actions={
+          <Button
+            variant="primary"
+            size="md"
+            icon={<Download size={18} />}
+            onClick={handleExport}
+          >
+            Export CSV
+          </Button>
+        }
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm mb-1">Hadir</p>
-                  <p className="text-4xl font-bold">{stats.totalPresent}</p>
-                </div>
-                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center">
-                  <CheckCircle className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-yellow-500 to-orange-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-yellow-100 text-sm mb-1">Terlambat</p>
-                  <p className="text-4xl font-bold">{stats.totalLate}</p>
-                </div>
-                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Clock className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-red-500 to-rose-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-100 text-sm mb-1">Tidak Hadir</p>
-                  <p className="text-4xl font-bold">{stats.totalAbsent}</p>
-                </div>
-                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center">
-                  <XCircle className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm mb-1">Avg Confidence</p>
-                  <p className="text-4xl font-bold">{stats.avgConfidence}%</p>
-                </div>
-                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center">
-                  <TrendingUp className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        {isLoading ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : (
+          <>
+            <MetricCard
+              title="Hadir"
+              value={totalPresent}
+              icon={<CheckCircle size={24} />}
+              trend={attendanceRate > 85 ? 'up' : 'down'}
+              color="success"
+            />
+            <MetricCard
+              title="Terlambat"
+              value={totalLate}
+              icon={<Clock size={24} />}
+              color="warning"
+            />
+            <MetricCard
+              title="Tidak Hadir"
+              value={totalAbsent}
+              icon={<XCircle size={24} />}
+              color="danger"
+            />
+            <MetricCard
+              title="Tingkat Kehadiran"
+              value={`${attendanceRate}%`}
+              icon={<TrendingUp size={24} />}
+              trend={attendanceRate > 85 ? 'up' : 'down'}
+              color="accent"
+            />
+          </>
+        )}
       </div>
 
-      {/* Weekly Trend Chart */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <Card className="shadow-xl border-0">
-          <CardHeader className="border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                  <BarChart3 className="w-5 h-5 text-white" />
-                </div>
-                <CardTitle className="text-xl">Tren Kehadiran Mingguan</CardTitle>
-              </div>
+      {/* Filters */}
+      <Card>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Calendar size={18} className="text-neutral-500" />
+              <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Periode:
+              </span>
             </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyData}>
-                  <defs>
-                    <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="day" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: 'none',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    }}
-                  />
-                  <Area type="monotone" dataKey="present" stroke="#10B981" strokeWidth={3} fill="url(#colorPresent)" />
-                  <Area type="monotone" dataKey="late" stroke="#F59E0B" strokeWidth={2} fill="transparent" />
-                  <Area type="monotone" dataKey="absent" stroke="#EF4444" strokeWidth={2} fill="transparent" />
-                </AreaChart>
-              </ResponsiveContainer>
+
+            <div className="flex gap-2">
+              {[
+                { value: 'today', label: 'Hari Ini' },
+                { value: 'week', label: '7 Hari' },
+                { value: 'month', label: '30 Hari' },
+              ].map((filter) => (
+                <button
+                  key={filter.value}
+                  onClick={() => setDateFilter(filter.value)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    dateFilter === filter.value
+                      ? 'bg-accent-500 text-white shadow-sm'
+                      : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
 
-      {/* Filters and Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-      >
-        <Card className="shadow-xl border-0">
-          <CardHeader className="border-b border-gray-100">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                  <Users className="w-5 h-5 text-white" />
-                </div>
-                <CardTitle className="text-xl">Data Kehadiran</CardTitle>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Date Filter */}
-                <select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="today">Hari Ini</option>
-                  <option value="week">Minggu Ini</option>
-                  <option value="month">Bulan Ini</option>
-                </select>
-
-                {/* Status Filter */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">Semua Status</option>
-                  <option value="present">Hadir</option>
-                  <option value="late">Terlambat</option>
-                  <option value="absent">Tidak Hadir</option>
-                </select>
-
-                {/* Search */}
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Cari nama/NIM..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Export Button */}
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleExport}
-                  disabled={isLoading || !reportData}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Download className="w-4 h-4" />
-                  Export CSV
-                </motion.button>
-              </div>
+            <div className="ml-auto relative">
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
+              />
+              <input
+                placeholder="Cari siswa..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-64 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              />
             </div>
-          </CardHeader>
+          </div>
+        </CardContent>
+      </Card>
 
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-              </div>
-            ) : filteredAttendance.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-                <Users className="w-16 h-16 mb-4 text-gray-300" />
-                <p className="text-lg font-medium">Belum ada data kehadiran</p>
-                <p className="text-sm mt-1">Data akan muncul setelah siswa melakukan absensi</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
+      {/* Attendance Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+                Detail Kehadiran
+              </h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Total: {reportData?.student_breakdown?.length || 0} • Menampilkan:{' '}
+                {filteredAttendance.length}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {isLoading ? (
+            <SkeletonTable rows={8} columns={5} />
+          ) : (
+            <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">No</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">NIM</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Total Hadir</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tingkat Kehadiran</th>
+                <thead>
+                  <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Siswa
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      NIM
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Hadir
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Terlambat
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Tidak Hadir
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredAttendance.map((record: any, index: number) => (
-                    <motion.tr
-                      key={record.nim}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="hover:bg-gray-50 transition-colors"
+                <tbody>
+                  {filteredAttendance.map((record: any) => (
+                    <tr
+                      key={record.user_id}
+                      className="border-b border-neutral-100 dark:border-neutral-700/50 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors"
                     >
-                      <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-semibold text-gray-900">{record.name}</p>
+                      <td className="px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                        {record.name}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{record.nim}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900 font-semibold">{record.total_attendance}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full transition-all ${
-                                  record.attendance_rate >= 80 ? 'bg-green-500' : record.attendance_rate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                }`}
-                                style={{ width: `${record.attendance_rate}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                          <span className={`text-sm font-semibold ${
-                            record.attendance_rate >= 80 ? 'text-green-600' : record.attendance_rate >= 60 ? 'text-yellow-600' : 'text-red-600'
-                          }`}>
-                            {record.attendance_rate}%
-                          </span>
-                        </div>
+                      <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+                        {record.nim}
                       </td>
-                    </motion.tr>
+                      <td className="px-4 py-3 text-center">
+                        {record.hadir > 0 ? (
+                          <Badge variant="success" size="sm">
+                            {record.hadir}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-neutral-400">0</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {record.terlambat > 0 ? (
+                          <Badge variant="warning" size="sm">
+                            {record.terlambat}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-neutral-400">0</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {record.tidak_hadir > 0 ? (
+                          <Badge variant="danger" size="sm">
+                            {record.tidak_hadir}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-neutral-400">0</span>
+                        )}
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
-
-// Helper functions removed - no longer needed with backend data
 
 export default AttendancePage;

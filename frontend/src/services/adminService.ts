@@ -91,6 +91,23 @@ export const adminService = {
   },
 
   /**
+   * Admin register face for any user
+   */
+  async adminRegisterFace(userId: number, imagesBase64: string[]): Promise<any> {
+    const response = await api.post(`/face/admin/register/${userId}`, {
+      images_base64: imagesBase64,
+    });
+    return response.data;
+  },
+
+  /**
+   * Admin unregister face for any user
+   */
+  async adminUnregisterFace(userId: number): Promise<void> {
+    await api.delete(`/face/admin/unregister/${userId}`);
+  },
+
+  /**
    * Get attendance records with filters
    */
   async getAttendance(params?: AttendanceFilter): Promise<PaginatedResponse<Attendance>> {

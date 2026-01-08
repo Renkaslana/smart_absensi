@@ -14,6 +14,7 @@ from app.db.base import Base
 
 # Import routes
 from app.api.v1 import auth, face, absensi, admin, public, kelas
+from app.api.v1.endpoints import students
 
 
 @asynccontextmanager
@@ -176,6 +177,12 @@ app.include_router(
 app.include_router(
     kelas.router,
     prefix=settings.API_V1_PREFIX
+)
+
+app.include_router(
+    students.router,
+    prefix=f"{settings.API_V1_PREFIX}/students",
+    tags=["Students"]
 )
 
 

@@ -114,3 +114,45 @@ def get_optional_user(
         return user
     except Exception:
         return None
+
+
+def get_current_user_student(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency to verify current user is a student (role='user').
+    
+    Args:
+        current_user: Current authenticated user
+        
+    Returns:
+        Current student user
+        
+    Raises:
+        ForbiddenException: If user is not a student
+    """
+    if current_user.role != "user":
+        raise ForbiddenException("Student access required")
+    
+    return current_user
+
+
+def get_current_user_teacher(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency to verify current user is a teacher (role='teacher').
+    
+    Args:
+        current_user: Current authenticated user
+        
+    Returns:
+        Current teacher user
+        
+    Raises:
+        ForbiddenException: If user is not a teacher
+    """
+    if current_user.role != "teacher":
+        raise ForbiddenException("Teacher access required")
+    
+    return current_user

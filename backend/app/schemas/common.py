@@ -37,3 +37,17 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int
     page_size: int
     total_pages: int
+
+
+class ChangePasswordRequest(BaseModel):
+    """Password change request."""
+    current_password: str
+    new_password: str
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "current_password": "oldpassword123",
+                "new_password": "newpassword456"
+            }
+        }

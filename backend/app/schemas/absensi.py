@@ -58,3 +58,28 @@ class TodayAttendanceResponse(BaseModel):
     """Today's attendance check response."""
     has_attended: bool
     attendance: Optional[AbsensiResponse] = None
+
+
+class AttendanceRecord(BaseModel):
+    """Individual attendance record."""
+    id: int
+    tanggal: date
+    waktu: str
+    mata_pelajaran: Optional[str] = None
+    guru: Optional[str] = None
+    status: str
+    method: Optional[str] = "manual"
+    confidence: Optional[float] = None
+    keterangan: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class AttendanceHistoryResponse(BaseModel):
+    """Paginated attendance history response."""
+    data: list[AttendanceRecord]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int

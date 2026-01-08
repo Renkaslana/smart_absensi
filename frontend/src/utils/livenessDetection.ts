@@ -412,8 +412,9 @@ export function detectHeadMovement(
   // Calculate yaw difference from initial position
   const yawDelta = Math.abs(pose.yaw - state.initialYaw);
 
-  // Detect significant head movement (> 0.15 or ~15 degrees)
-  if (yawDelta > 0.15 && !state.hasMoved) {
+  // 🌙 REDUCED THRESHOLD: Detect smaller head movement (> 0.08 or ~8 degrees)
+  // User reported 0.15 too strict, causing face detection loss
+  if (yawDelta > 0.08 && !state.hasMoved) {
     return {
       initialYaw: state.initialYaw,
       hasMoved: true,
@@ -606,8 +607,11 @@ export function analyzeTexture(canvas: HTMLCanvasElement): {
   // Real face has richer texture (higher entropy)
   const entropy = calculateEntropy(lbp);
 
+  // 🌙 REDUCED THRESHOLD: from 4.5 to 3.8
+  // User reported false positive: real webcam face detected as photo
+  // LBP texture analysis can be affected by lighting, camera quality
   return {
-    isRealFace: entropy > 4.5,
+    isRealFace: entropy > 3.8,
     textureScore: entropy,
   };
 }

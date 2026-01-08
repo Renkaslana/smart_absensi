@@ -17,12 +17,14 @@ const FaceRegistrationPage = () => {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null); // 🌙 Persistent stream reference
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [autoCapture, setAutoCapture] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null); // 🌙 Countdown state (3, 2, 1, null)
 
   const MIN_IMAGES = 3;
   const MAX_IMAGES = 5;
@@ -38,8 +40,8 @@ const FaceRegistrationPage = () => {
   );
 
   useEffect(() => {
-    startCamera();
-    
+    // 🌙 Don't auto-start camera - let user click button first
+    // Similar to AttendanceTestPage behavior
     return () => {
       console.log('[FaceRegistration] Component unmounting, stopping camera...');
       window.speechSynthesis.cancel(); // 🌙 Stop any ongoing voice feedback
@@ -59,25 +61,62 @@ const FaceRegistrationPage = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [stream]);
 
-  // Auto capture effect with REAL liveness detection 🌙
+  // 🌙 Auto capture with SMART liveness: full check for first photo, lenient for rest
   useEffect(() => {
-    if (!autoCapture || !cameraReady || capturedImages.length >= MAX_IMAGES) {
-      return;
+    if (!autoCapture || !cameraReady || capturedImages.length >= MAX_IMAGES || countdown !== null) {
+      return; // Don't start new countdown if one is active
     }
 
-    // Only capture when ALL liveness checks pass
-    if (livenessResult.canCapture && livenessResult.status === 'pass') {
+    const isFirstPhoto = capturedImages.length === 0;
+
+    if (isFirstPhoto) {
+      // 🔒 FIRST PHOTO: Strict liveness check (mouth + head movement)
+      if (livenessResult.canCapture && livenessResult.status === 'pass') {
+        // Start countdown: 3 → 2 → 1 → capture
+        setCountdown(3);
+      }
+    } else {
+      // ✅ SUBSEQUENT PHOTOS: Lenient check (face + quality only, no liveness)
+      if (
+        livenessResult.details.faceDetected &&
+        !livenessResult.details.isBlurry &&
+        !livenessResult.details.isDark &&
+        livenessResult.progress >= 40 // At least basic checks pass
+      ) {
+        // Start countdown for subsequent photos
+        setCountdown(3);
+      }
+    }
+  }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown]);
+
+  // 🌙 Countdown effect: 3 → 2 → 1 → 0 (capture) → null (reset)
+  useEffect(() => {
+    if (countdown === null) return;
+
+    if (countdown > 0) {
+      // Countdown animation (3, 2, 1)
       const timer = setTimeout(() => {
-        captureImage();
-        speakFeedback(`Foto ${capturedImages.length + 1} berhasil diambil`);
-        
-        // Reset blink count after successful capture
-        resetBlinkCount();
-      }, 1000); // 1 second delay after passing all checks
-
+        speakFeedback(countdown.toString()); // Voice feedback
+        setCountdown(countdown - 1);
+      }, 1000);
       return () => clearTimeout(timer);
+    } else if (countdown === 0) {
+      // Countdown reached 0 → capture photo
+      captureImage();
+      speakFeedback(
+        capturedImages.length === 0
+          ? `Foto pertama berhasil! Liveness verified. Ambil ${MAX_IMAGES - 1} foto lagi.`
+          : `Foto ${capturedImages.length + 1} berhasil diambil`
+      );
+      
+      if (capturedImages.length === 0) {
+        resetBlinkCount(); // Reset after first photo
+      }
+      
+      // Reset countdown after capture
+      setCountdown(null);
     }
-  }, [autoCapture, cameraReady, capturedImages.length, livenessResult]);
+  }, [countdown, capturedImages.length]);
 
   // Stop auto capture when max reached
   useEffect(() => {
@@ -101,6 +140,7 @@ const FaceRegistrationPage = () => {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.play();
         setStream(mediaStream);
+        streamRef.current = mediaStream; // 🌙 Save to ref for cleanup
         setCameraReady(true);
       }
     } catch (error) {
@@ -112,14 +152,20 @@ const FaceRegistrationPage = () => {
   const stopCamera = () => {
     console.log('[FaceRegistration] stopCamera called');
     
-    if (stream) {
-      console.log('[FaceRegistration] Stopping media tracks:', stream.getTracks().length);
-      stream.getTracks().forEach((track) => {
+    // 🌙 Use streamRef.current for reliable cleanup
+    const currentStream = streamRef.current || stream;
+    
+    if (currentStream) {
+      console.log('[FaceRegistration] Stopping media tracks:', currentStream.getTracks().length);
+      currentStream.getTracks().forEach((track) => {
         console.log(`[FaceRegistration] Stopping track: ${track.kind}, enabled: ${track.enabled}`);
         track.stop();
       });
       setStream(null);
+      streamRef.current = null; // 🌙 Clear ref
       setCameraReady(false);
+    } else {
+      console.log('[FaceRegistration] ⚠️ No stream to stop (both streamRef and state are null)');
     }
     
     // Also clear video srcObject
@@ -308,28 +354,74 @@ const FaceRegistrationPage = () => {
                   <div className="absolute inset-0 bg-white animate-pulse" />
                 )}
 
+                {/* 🌙 Countdown Animation (3, 2, 1) */}
+                {countdown !== null && countdown > 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div 
+                      className="text-white font-bold animate-bounce"
+                      style={{
+                        fontSize: '15rem',
+                        textShadow: '0 0 40px rgba(139, 92, 246, 0.8), 0 0 80px rgba(139, 92, 246, 0.6)',
+                        animation: 'pulse 0.8s ease-in-out',
+                      }}
+                    >
+                      {countdown}
+                    </div>
+                  </div>
+                )}
+
                 {/* Guide Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-64 h-80 border-2 border-accent-500 rounded-full opacity-30"></div>
                 </div>
               </div>
 
+              {/* 🌙 Manual Camera Control */}
               <div className="flex items-center justify-center gap-4">
-                <Button
-                  variant={autoCapture ? 'danger' : 'secondary'}
-                  size="lg"
-                  onClick={() => {
-                    setAutoCapture(!autoCapture);
-                    if (!autoCapture) {
-                      toast.success('Auto capture diaktifkan! Foto akan diambil otomatis');
-                    } else {
-                      toast('Auto capture dinonaktifkan');
-                    }
-                  }}
-                  disabled={!cameraReady || capturedImages.length >= MAX_IMAGES}
-                >
-                  {autoCapture ? '⏸️ Stop Auto' : '▶️ Auto Capture'}
-                </Button>
+                {!cameraReady ? (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={startCamera}
+                    icon={<Camera size={20} />}
+                  >
+                    Aktifkan Kamera
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="danger"
+                      size="lg"
+                      onClick={() => {
+                        stopCamera();
+                        setAutoCapture(false);
+                        toast('Kamera dimatikan');
+                      }}
+                      icon={<X size={20} />}
+                    >
+                      Matikan Kamera
+                    </Button>
+
+                    <Button
+                      variant={autoCapture ? 'danger' : 'secondary'}
+                      size="lg"
+                      onClick={() => {
+                        setAutoCapture(!autoCapture);
+                        if (!autoCapture) {
+                          toast.success('Auto capture diaktifkan! Foto akan diambil otomatis');
+                        } else {
+                          toast('Auto capture dinonaktifkan');
+                        }
+                      }}
+                      disabled={capturedImages.length >= MAX_IMAGES}
+                    >
+                      {autoCapture ? '⏸️ Stop Auto' : '▶️ Auto Capture'}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-center gap-4">
 
                 <Button
                   variant="primary"
@@ -353,23 +445,18 @@ const FaceRegistrationPage = () => {
                     <ul className="text-xs text-accent-700 dark:text-accent-300 space-y-1">
                       <li>• Pastikan pencahayaan cukup terang (tidak gelap/overexposed)</li>
                       <li>• Wajah menghadap kamera langsung (frontal, tidak miring)</li>
-                      <li>• <strong>Buka mulut (A-O)</strong> saat auto capture aktif</li>
-                      <li>• <strong>Gerakkan kepala kiri → kanan</strong> untuk validasi</li>
+                      <li>• <strong>Foto pertama:</strong> Buka mulut (A-O) + gerakkan kepala sedikit</li>
+                      <li>• <strong>Foto selanjutnya:</strong> Auto capture (face + quality saja)</li>
                       <li>• Gunakan wajah asli (bukan foto atau layar)</li>
                       <li>• Tahan kamera dengan stabil (hindari blur)</li>
                       <li>• Minimal 3 foto, maksimal 5 foto</li>
                     </ul>
                     <div className="mt-3 pt-3 border-t border-accent-200 dark:border-accent-700">
                       <p className="text-[10px] text-accent-600 dark:text-accent-400">
-                        Sistem menggunakan HOG face detection, blur detection (Laplacian), 
-                        <strong> mouth open detection (MAR), head movement tracking</strong>, 
-                        dan texture analysis (LBP) untuk memastikan hanya wajah asli yang dapat didaftarkan.
-                        Lebih akurat dan netral untuk pengguna Asia.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                        <strong>Liveness Detection:</strong> Foto pertama menggunakan full check 
+                        (mouth open + head movement) untuk memastikan wajah asli. 
+                        Foto 2-5 hanya check kualitas gambar untuk pengambilan cepat.
+                        Threshold head movement diturunkan ke ~8° untuk kenyamanan.
                       </p>
                     </div>
                   </div>

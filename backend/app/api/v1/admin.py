@@ -137,6 +137,62 @@ async def get_all_students(
     )
 
 
+@router.get("/teachers", response_model=PaginatedResponse[UserWithStats])
+async def get_all_teachers(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=1000),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all teachers with face registration status and statistics.
+    Similar to students but filters for teacher role.
+    """
+    # Build query for teachers
+    query = db.query(User).filter(User.role == "teacher")
+    
+    # Get total count
+    total = query.count()
+    
+    # Get paginated results
+    users = query.offset(skip).limit(limit).all()
+    
+    # Build response with statistics
+    items = []
+    for user in users:
+        # Get user statistics
+        stats = attendance_service.get_user_statistics(db, user.id)
+        
+        # Get face encodings count
+        encodings_count = db.query(FaceEncoding).filter(
+            FaceEncoding.user_id == user.id
+        ).count()
+        
+        items.append(UserWithStats(
+            id=user.id,
+            nim=user.nim,
+            name=user.name,
+            email=user.email,
+            role=user.role,
+            kelas=user.kelas,
+            is_active=user.is_active,
+            has_face=user.has_face,
+            created_at=user.created_at,
+            total_attendance=stats["total_attendance"],
+            attendance_rate=stats["attendance_rate"],
+            current_streak=stats["current_streak"],
+            encodings_count=encodings_count
+        ))
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1,
+        page_size=limit,
+        total_pages=(total + limit - 1) // limit
+    )
+
+
 @router.get("/students/{user_id}", response_model=UserWithStats)
 async def get_student_detail(
     user_id: int,
@@ -362,6 +418,52 @@ async def delete_student(
         success=True,
         message=f"Student {user.name} deleted successfully"
     )
+
+
+@router.post("/teachers", response_model=UserResponse)
+async def create_teacher(
+    user_data: UserCreate,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new teacher.
+    Requires admin role.
+    """
+    # Check if NIM already exists
+    existing = db.query(User).filter(User.nim == user_data.nim).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="NIM already registered"
+        )
+    
+    # Check if email already exists
+    if user_data.email:
+        existing = db.query(User).filter(User.email == user_data.email).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered"
+            )
+    
+    # Create teacher
+    teacher = User(
+        nim=user_data.nim,
+        name=user_data.name,
+        email=user_data.email,
+        password_hash=get_password_hash(user_data.password),
+        role="teacher",
+        kelas=user_data.kelas,
+        is_active=True,
+        has_face=False
+    )
+    
+    db.add(teacher)
+    db.commit()
+    db.refresh(teacher)
+    
+    return UserResponse.model_validate(teacher)
 
 
 @router.get("/report")

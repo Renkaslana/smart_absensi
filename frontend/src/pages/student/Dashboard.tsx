@@ -11,21 +11,16 @@ import {
   ChevronRight,
   CheckCircle,
   XCircle,
+  Loader,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Feedback';
+import { useStudentDashboard } from '../../hooks/useStudent';
 
 const Dashboard: React.FC = () => {
-  // 🌙 Dummy data - will be replaced with API calls
-  const attendanceSummary = {
-    total_hadir: 42,
-    total_sakit: 2,
-    total_izin: 1,
-    total_alpa: 0,
-    percentage: 93.3,
-    status: 'good' as 'good' | 'warning' | 'alert',
-  };
+  const { data: dashboardData, isLoading, error } = useStudentDashboard();
 
+  // 🌙 Dummy data for schedule and activity (will integrate later)
   const todaySchedule = [
     {
       id: 1,
@@ -55,7 +50,7 @@ const Dashboard: React.FC = () => {
       mata_pelajaran: 'Matematika',
       status: 'hadir' as const,
       method: 'face_recognition' as const,
-      confidence: 0.95,
+      confidence: 95,
     },
     {
       id: 2,
@@ -64,7 +59,7 @@ const Dashboard: React.FC = () => {
       mata_pelajaran: 'Bahasa Inggris',
       status: 'hadir' as const,
       method: 'face_recognition' as const,
-      confidence: 0.92,
+      confidence: 92,
     },
     {
       id: 3,
@@ -76,6 +71,13 @@ const Dashboard: React.FC = () => {
       confidence: null,
     },
   ];
+
+  // Calculate attendance status based on percentage
+  const getAttendanceStatus = (percentage: number) => {
+    if (percentage >= 90) return 'good';
+    if (percentage >= 75) return 'warning';
+    return 'alert';
+  };
 
   const getAttendanceStatusBadge = (status: string) => {
     switch (status) {
@@ -113,41 +115,112 @@ const Dashboard: React.FC = () => {
         <p className="text-gray-600 mt-1">Selamat datang! Berikut ringkasan absensi Anda.</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Attendance Rate */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="border-l-4 border-l-teal-600">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Tingkat Kehadiran</p>
-                  <p className="text-3xl font-bold text-gray-900">{attendanceSummary.percentage}%</p>
-                  {getAttendanceStatusBadge(attendanceSummary.status)}
-                </div>
-                <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-teal-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader className="w-8 h-8 animate-spin text-teal-600" />
+          <span className="ml-3 text-gray-600">Memuat data...</span>
+        </div>
+      )}
 
-        {/* Total Hadir */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Hadir</p>
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-800">Gagal memuat data dashboard. Silakan refresh halaman.</p>
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      {!isLoading && !error && dashboardData && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Attendance Rate */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <Card className="border-l-4 border-l-teal-600">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Tingkat Kehadiran</p>
+                      <p className="text-3xl font-bold text-gray-900">{dashboardData.persentase_kehadiran}%</p>
+                      {getAttendanceStatusBadge(getAttendanceStatus(dashboardData.persentase_kehadiran))}
+                    </div>
+                    <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-teal-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Total Hadir */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Hadir</p>
+                      <p className="text-3xl font-bold text-emerald-600">{dashboardData.total_hadir}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                      <CheckCircle className="w-6 h-6 text-emerald-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Total Sakit + Izin */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Sakit / Izin</p>
+                      <p className="text-3xl font-bold text-yellow-600">{dashboardData.total_sakit + dashboardData.total_izin}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                      <AlertCircle className="w-6 h-6 text-yellow-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Total Alpa */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Alpa</p>
+                      <p className="text-3xl font-bold text-red-600">{dashboardData.total_alpa}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                      <XCircle className="w-6 h-6 text-red-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </>
+      )}
                   <p className="text-3xl font-bold text-emerald-600">{attendanceSummary.total_hadir}</p>
                   <p className="text-xs text-gray-500 mt-1">Pertemuan</p>
                 </div>

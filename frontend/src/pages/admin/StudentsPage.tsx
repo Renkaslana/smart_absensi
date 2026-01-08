@@ -1,127 +1,161 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
+import {
+  Users,
+  GraduationCap,
+  Plus,
+  Search,
+  Trash2,
+  Eye,
+  Inbox,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+
 import { adminService } from '../../services/adminService';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import type { UserCreate } from '../../types/user.types';
+
+const LIMIT = 10;
 
 const StudentsPage: React.FC = () => {
   const [tab, setTab] = useState<'siswa' | 'guru'>('siswa');
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterKelas, setFilterKelas] = useState('');
-  const [filterFace, setFilterFace] = useState<boolean | undefined>(undefined);
+  const [filterFace, setFilterFace] = useState<boolean | undefined>();
   const [page, setPage] = useState(1);
-  const limit = 10;
 
   const queryClient = useQueryClient();
 
-  // Fetch students
-  const { data: studentsData, isLoading } = useQuery({
-    queryKey: ['students', tab, page, searchQuery, filterKelas, filterFace],
+  // kelas options untuk filter pada tabel siswa
+  const { data: kelasOptions, isLoading: loadingKelasOptions } = useQuery({
+    queryKey: ['kelas-options'],
+    queryFn: () => adminService.getKelasOptions(),
+  });
+
+  /* ================= FETCH ================= */
+  const { data, isLoading } = useQuery({
+    queryKey: ['users', tab, page, searchQuery, filterKelas, filterFace],
     queryFn: () =>
       tab === 'siswa'
         ? adminService.getStudents({
-            skip: (page - 1) * limit,
-            limit,
+            skip: (page - 1) * LIMIT,
+            limit: LIMIT,
             search: searchQuery,
             kelas: filterKelas,
             has_face: filterFace,
           })
         : adminService.getTeachers({
-            skip: (page - 1) * limit,
-            limit,
+            skip: (page - 1) * LIMIT,
+            limit: LIMIT,
           }),
   });
 
-  // Delete mutation
+  /* ================= DELETE ================= */
   const deleteMutation = useMutation({
     mutationFn: (id: number) => adminService.deleteUser(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
       toast.success('User berhasil dihapus');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: () => {
-      toast.error('Gagal menghapus user');
-    },
+    onError: () => toast.error('Gagal menghapus user'),
   });
 
-  const handleDelete = async (id: number, name: string) => {
-    if (window.confirm(`Apakah Anda yakin ingin menghapus ${name}?`)) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  const totalPages = studentsData
-    ? Math.ceil(studentsData.total / limit)
-    : 1;
+  const totalPages = data ? Math.ceil(data.total / LIMIT) : 1;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ================= HEADER ================= */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manajemen Pengguna</h1>
-          <p className="text-gray-600 mt-1">
-            Kelola data siswa dan guru
+          <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+            Manajemen Pengguna
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Kelola data siswa dan guru secara terpusat
           </p>
         </div>
+
         <Button
-          onClick={() => setShowAddModal(true)}
-          variant="primary"
           size="lg"
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2"
         >
-          + Tambah {tab === 'siswa' ? 'Siswa' : 'Guru'}
+          <Plus className="w-4 h-4" />
+          Tambah {tab === 'siswa' ? 'Siswa' : 'Guru'}
         </Button>
       </div>
 
-      <Card>
-        {/* Tabs */}
-        <CardHeader>
-          <div className="flex items-center gap-4 border-b border-gray-200 -mb-4">
-            <button
-              onClick={() => setTab('siswa')}
-              className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-                tab === 'siswa'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              👥 Siswa
-            </button>
-            <button
-              onClick={() => setTab('guru')}
-              className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-                tab === 'guru'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              👨‍🏫 Guru
-            </button>
+      {/* ================= CARD ================= */}
+      <Card className="rounded-2xl shadow-sm">
+        {/* ================= TABS ================= */}
+        <CardHeader className="pb-0">
+          <div className="flex gap-6 border-b">
+            <TabButton
+              active={tab === 'siswa'}
+              icon={Users}
+              label="Siswa"
+              onClick={() => {
+                setTab('siswa');
+                setPage(1);
+              }}
+            />
+            <TabButton
+              active={tab === 'guru'}
+              icon={GraduationCap}
+              label="Guru"
+              onClick={() => {
+                setTab('guru');
+                setPage(1);
+              }}
+            />
           </div>
         </CardHeader>
 
-        <CardContent>
-          {/* Filters */}
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              placeholder="Cari NIM/Nama..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <CardContent className="pt-6">
+          {/* ================= FILTER ================= */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              <Input
+                className="pl-9"
+                placeholder="Cari NIM / Nama..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
             {tab === 'siswa' && (
               <>
-                <Input
-                  placeholder="Filter Kelas..."
-                  value={filterKelas}
-                  onChange={(e) => setFilterKelas(e.target.value)}
-                />
+                <div>
+                  {loadingKelasOptions ? (
+                    <Input placeholder="Memuat kelas..." disabled />
+                  ) : (
+                    <select
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                      value={filterKelas}
+                      onChange={(e) => {
+                        setPage(1);
+                        setFilterKelas(e.target.value);
+                      }}
+                    >
+                      <option value="">Semua Kelas</option>
+                      {kelasOptions?.map((k: any) => (
+                        <option key={k.id} value={k.value}>
+                          {k.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
                 <select
                   className="input"
-                  value={filterFace === undefined ? '' : filterFace.toString()}
+                  value={filterFace === undefined ? '' : String(filterFace)}
                   onChange={(e) =>
                     setFilterFace(
                       e.target.value === '' ? undefined : e.target.value === 'true'
@@ -129,121 +163,58 @@ const StudentsPage: React.FC = () => {
                   }
                 >
                   <option value="">Semua Status Wajah</option>
-                  <option value="true">Sudah Terdaftar</option>
+                  <option value="true">Terdaftar</option>
                   <option value="false">Belum Terdaftar</option>
                 </select>
               </>
             )}
           </div>
 
-          {/* Table */}
+          {/* ================= CONTENT ================= */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
+            <Loader />
+          ) : !data?.data?.length ? (
+            <EmptyState tab={tab} onAdd={() => setShowAddModal(true)} />
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {tab === 'siswa' ? 'NIM' : 'NIP'}
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Nama
-                      </th>
-                      {tab === 'siswa' ? (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Kelas
-                        </th>
-                      ) : (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                      )}
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status Wajah
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total Absensi
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {studentsData?.data.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {user.nim}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {user.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {tab === 'siswa' ? user.kelas || '-' : user.email || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {user.has_face ? (
-                            <span className="badge badge-success">✓ Terdaftar</span>
-                          ) : (
-                            <span className="badge badge-warning">✗ Belum</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {user.total_attendance || 0}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/admin/students/${user.id}`}
-                              className="text-primary-600 hover:text-primary-800 font-medium"
-                            >
-                              Detail
-                            </a>
-                            <button
-                              onClick={() => handleDelete(user.id, user.name)}
-                              className="text-danger-600 hover:text-danger-800 font-medium"
-                              disabled={deleteMutation.isPending}
-                            >
-                              Hapus
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <UserTable
+                tab={tab}
+                users={data.data}
+                onDelete={(id, name) => {
+                  if (confirm(`Hapus ${name}?`)) {
+                    deleteMutation.mutate(id);
+                  }
+                }}
+              />
 
-              {/* Pagination */}
-              <div className="mt-6 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Showing {(page - 1) * limit + 1} -{' '}
-                  {Math.min(page * limit, studentsData?.total || 0)} of{' '}
-                  {studentsData?.total || 0} results
+              {/* ================= PAGINATION ================= */}
+              <div className="flex items-center justify-between mt-6">
+                <p className="text-sm text-gray-500">
+                  Menampilkan {(page - 1) * LIMIT + 1} –{' '}
+                  {Math.min(page * LIMIT, data.total)} dari {data.total}
                 </p>
+
                 <div className="flex items-center gap-2">
                   <Button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    variant="outline"
+                    size="sm"
                     disabled={page === 1}
-                    variant="outline"
-                    size="sm"
+                    onClick={() => setPage((p) => p - 1)}
                   >
-                    Previous
+                    <ChevronLeft className="w-4 h-4" />
                   </Button>
+
                   <span className="text-sm text-gray-600">
-                    Page {page} of {totalPages}
+                    Page {page} / {totalPages}
                   </span>
+
                   <Button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
                     variant="outline"
                     size="sm"
+                    disabled={page === totalPages}
+                    onClick={() => setPage((p) => p + 1)}
                   >
-                    Next
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -252,14 +223,13 @@ const StudentsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Add Modal */}
       {showAddModal && (
         <AddUserModal
           type={tab}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
-            queryClient.invalidateQueries({ queryKey: ['students'] });
+            queryClient.invalidateQueries({ queryKey: ['users'] });
           }}
         />
       )}
@@ -267,92 +237,263 @@ const StudentsPage: React.FC = () => {
   );
 };
 
-// Add User Modal Component
-interface AddUserModalProps {
-  type: 'siswa' | 'guru';
-  onClose: () => void;
-  onSuccess: () => void;
-}
 
-const AddUserModal: React.FC<AddUserModalProps> = ({ type, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState<UserCreate>({
+
+/* ================= SUB COMPONENTS ================= */
+
+const TabButton = ({ icon: Icon, label, active, onClick }: any) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-all
+      ${
+        active
+          ? 'border-primary-600 text-primary-600'
+          : 'border-transparent text-gray-500 hover:text-gray-800'
+      }`}
+  >
+    <Icon className="w-4 h-4" />
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
+const Loader = () => (
+  <div className="flex justify-center py-16">
+    <div className="h-10 w-10 rounded-full border-4 border-primary-600 border-t-transparent animate-spin" />
+  </div>
+);
+
+const EmptyState = ({ tab, onAdd }: any) => (
+  <div className="flex flex-col items-center py-16 text-center">
+    <Inbox className="w-14 h-14 text-gray-300 mb-4" />
+    <h3 className="text-lg font-semibold">
+      Belum ada data {tab === 'siswa' ? 'siswa' : 'guru'}
+    </h3>
+    <p className="text-sm text-gray-500 mt-1 mb-4">
+      Mulai tambahkan data untuk ditampilkan di sistem
+    </p>
+    <Button onClick={onAdd}>
+      <Plus className="w-4 h-4 mr-2" />
+      Tambah Data
+    </Button>
+  </div>
+);
+
+const UserTable = ({ tab, users, onDelete }: any) => (
+  <div className="overflow-x-auto rounded-xl border">
+    <table className="w-full text-sm">
+      <thead className="bg-gray-50 text-gray-600">
+        <tr>
+          <th className="px-5 py-3 text-left">{tab === 'siswa' ? 'NIM' : 'NIP'}</th>
+          <th className="px-5 py-3 text-left">Nama</th>
+          <th className="px-5 py-3 text-left">
+            {tab === 'siswa' ? 'Kelas' : 'Email'}
+          </th>
+          <th className="px-5 py-3 text-left">Status Wajah</th>
+          <th className="px-5 py-3 text-right">Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {users.map((u: any) => (
+          <tr key={u.id} className="border-t hover:bg-gray-50">
+            <td className="px-5 py-3 font-medium">{u.nim}</td>
+            <td className="px-5 py-3">{u.name}</td>
+            <td className="px-5 py-3 text-gray-500">
+              {tab === 'siswa' ? u.kelas || '-' : u.email || '-'}
+            </td>
+            <td className="px-5 py-3">
+              <span
+                className={`px-2 py-1 rounded-full text-xs font-medium
+                  ${
+                    u.has_face
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-yellow-100 text-yellow-700'
+                  }`}
+              >
+                {u.has_face ? 'Terdaftar' : 'Belum'}
+              </span>
+            </td>
+            <td className="px-5 py-3 text-right">
+              <div className="flex justify-end gap-3">
+                <a
+                  href={`/admin/students/${u.id}`}
+                  className="text-primary-600 hover:text-primary-800"
+                >
+                  <Eye className="w-4 h-4" />
+                </a>
+                <button
+                  onClick={() => onDelete(u.id, u.name)}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+// Add User Modal Component
+const AddUserModal = ({ type, onClose, onSuccess }: any) => {
+  const [formData, setFormData] = useState({
     nim: '',
     name: '',
     email: '',
     password: '',
     kelas: '',
   });
+  const [loading, setLoading] = useState(false);
 
-  const createMutation = useMutation({
-    mutationFn: (data: UserCreate) =>
-      type === 'siswa'
-        ? adminService.createStudent(data)
-        : adminService.createTeacher(data),
-    onSuccess: () => {
-      toast.success(`${type === 'siswa' ? 'Siswa' : 'Guru'} berhasil ditambahkan`);
-      onSuccess();
-    },
-    onError: () => {
-      toast.error('Gagal menambahkan user');
-    },
+  // Fetch kelas options
+  const { data: kelasOptions, isLoading: loadingKelas } = useQuery({
+    queryKey: ['kelas-options'],
+    queryFn: () => adminService.getKelasOptions(),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+    setLoading(true);
+
+    try {
+      if (type === 'siswa') {
+        await adminService.createStudent({
+          nim: formData.nim,
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          kelas: formData.kelas,
+        });
+      } else {
+        await adminService.createTeacher({
+          nim: formData.nim,
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          kelas: undefined,
+        });
+      }
+
+      toast.success(`${type === 'siswa' ? 'Siswa' : 'Guru'} berhasil ditambahkan!`);
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      const errorMessage = error.response?.data?.detail || 'Gagal menambahkan data';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-md w-full p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          Tambah {type === 'siswa' ? 'Siswa' : 'Guru'} Baru
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+          Tambah {type === 'siswa' ? 'Siswa' : 'Guru'}
         </h2>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label={type === 'siswa' ? 'NIM' : 'NIP'}
-            placeholder={`Masukkan ${type === 'siswa' ? 'NIM' : 'NIP'}`}
-            value={formData.nim}
-            onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
-            required
-          />
-          <Input
-            label="Nama Lengkap"
-            placeholder="Masukkan nama lengkap"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
-          <Input
-            label="Email"
-            type="email"
-            placeholder="Masukkan email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          />
-          {type === 'siswa' && (
-            <Input
-              label="Kelas"
-              placeholder="Masukkan kelas"
-              value={formData.kelas}
-              onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {type === 'siswa' ? 'NIM' : 'NIP'}
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.nim}
+              onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder={type === 'siswa' ? 'Masukkan NIM' : 'Masukkan NIP'}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nama Lengkap
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Masukkan nama lengkap"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email (opsional)
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="email@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Minimal 6 karakter"
+            />
+          </div>
+
+          {type === 'siswa' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Kelas (wajib)
+              </label>
+              {loadingKelas ? (
+                <div className="w-full px-4 py-2 border border-gray-300 rounded-xl text-gray-400">
+                  Loading kelas...
+                </div>
+              ) : (
+                <select
+                  required
+                  value={formData.kelas}
+                  onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Pilih Kelas</option>
+                  {kelasOptions?.map((kelas: any) => (
+                    <option key={kelas.id} value={kelas.value}>
+                      {kelas.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           )}
-          <Input
-            label="Password"
-            type="password"
-            placeholder="Masukkan password (min 8 karakter)"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required
-          />
+
           <div className="flex gap-3 pt-4">
-            <Button type="submit" variant="primary" className="flex-1" isLoading={createMutation.isPending}>
-              Tambah
-            </Button>
-            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
               Batal
-            </Button>
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:shadow-lg disabled:opacity-50 font-semibold"
+            >
+              {loading ? 'Menyimpan...' : 'Simpan'}
+            </button>
           </div>
         </form>
       </div>

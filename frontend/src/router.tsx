@@ -23,6 +23,7 @@ import ProfilePage from './pages/student/ProfilePage';
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
 import StudentsPage from './pages/admin/StudentsPage';
+import ClassroomsPage from './pages/admin/ClassroomsPage.tsx';
 import StudentDetailPage from './pages/admin/StudentDetailPage';
 import AttendancePage from './pages/admin/AttendancePage';
 import SettingsPage from './pages/admin/SettingsPage';
@@ -133,6 +134,10 @@ export const router = createBrowserRouter([
       {
         path: 'students',
         element: <StudentsPage />,
+      },
+      {
+        path: 'classrooms',
+        element: <ClassroomsPage />,
       },
       {
         path: 'students/:id',

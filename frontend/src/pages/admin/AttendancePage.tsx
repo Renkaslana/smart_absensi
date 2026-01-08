@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { 
   Calendar, 
   Download, 
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { adminService } from '../../services/adminService';
 
 interface AttendanceRecord {
   id: number;
@@ -29,16 +32,89 @@ const AttendancePage = () => {
   const [dateFilter, setDateFilter] = useState('today');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  // Mock data
-  const mockAttendance: AttendanceRecord[] = [
-    { id: 1, studentName: 'Demo Student', nim: '23215030', date: '2025-01-08', time: '08:15', status: 'present', confidence: 95.2 },
-    { id: 2, studentName: 'Ahmad Fauzi', nim: '23215031', date: '2025-01-08', time: '08:20', status: 'present', confidence: 92.8 },
-    { id: 3, studentName: 'Siti Nurhaliza', nim: '23215032', date: '2025-01-08', time: '08:30', status: 'late', confidence: 89.5 },
-    { id: 4, studentName: 'Budi Santoso', nim: '23215033', date: '2025-01-08', time: '08:10', status: 'present', confidence: 94.1 },
-    { id: 5, studentName: 'Dewi Lestari', nim: '23215034', date: '2025-01-08', time: '-', status: 'absent', confidence: 0 },
-  ];
+  // Initialize date range based on filter
+  useEffect(() => {
+    const today = new Date();
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    
+    switch (dateFilter) {
+      case 'today':
+        setStartDate(formatDate(today));
+        setEndDate(formatDate(today));
+        break;
+      case 'week':
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
+        setStartDate(formatDate(weekAgo));
+        setEndDate(formatDate(today));
+        break;
+      case 'month':
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(today.getMonth() - 1);
+        setStartDate(formatDate(monthAgo));
+        setEndDate(formatDate(today));
+        break;
+    }
+  }, [dateFilter]);
 
+  // Fetch attendance report from backend
+  const { data: reportData, isLoading, refetch } = useQuery({
+    queryKey: ['attendance-report', startDate, endDate],
+    queryFn: () => adminService.getAttendanceReport({
+      start_date: startDate,
+      end_date: endDate,
+    }),
+    enabled: !!startDate && !!endDate,
+  });
+
+  // Filter attendance list based on search and status
+  const filteredAttendance = reportData?.student_breakdown?.filter((record: any) => {
+    const matchesSearch = 
+      record.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.nim.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesSearch;
+  }) || [];
+
+  // Calculate statistics
+  const stats = {
+    totalPresent: reportData?.overview?.by_status?.hadir || 0,
+    totalLate: reportData?.overview?.by_status?.terlambat || 0,
+    totalAbsent:
+      (reportData?.overview?.total_students || 0) -
+      (reportData?.overview?.unique_users || 0),
+    avgConfidence: 92.9,
+  };
+
+
+  // Export to CSV
+  const handleExport = async () => {
+    try {
+      const blob = await adminService.exportAttendanceCSV({
+        start_date: startDate,
+        end_date: endDate,
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_${startDate}_to_${endDate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Laporan berhasil diexport!');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Gagal export laporan');
+    }
+  };
+
+  // Weekly data for chart (would need to be processed from backend data)
   const weeklyData = [
     { day: 'Mon', present: 45, late: 3, absent: 2 },
     { day: 'Tue', present: 47, late: 2, absent: 1 },
@@ -46,13 +122,7 @@ const AttendancePage = () => {
     { day: 'Thu', present: 48, late: 1, absent: 1 },
     { day: 'Fri', present: 46, late: 3, absent: 1 },
   ];
-
-  const stats = {
-    totalPresent: 42,
-    totalLate: 3,
-    totalAbsent: 5,
-    avgConfidence: 92.9
-  };
+    
 
   const getStatusBadge = (status: string) => {
     const badges = {
@@ -262,33 +332,44 @@ const AttendancePage = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={handleExport}
+                  disabled={isLoading || !reportData}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Download className="w-4 h-4" />
-                  Export
+                  Export CSV
                 </motion.button>
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : filteredAttendance.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Users className="w-16 h-16 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Belum ada data kehadiran</p>
+                <p className="text-sm mt-1">Data akan muncul setelah siswa melakukan absensi</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">No</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Nama</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">NIM</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tanggal</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Waktu</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Confidence</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Total Hadir</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tingkat Kehadiran</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {mockAttendance.map((record, index) => (
+                  {filteredAttendance.map((record: any, index: number) => (
                     <motion.tr
-                      key={record.id}
+                      key={record.nim}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
@@ -296,27 +377,26 @@ const AttendancePage = () => {
                     >
                       <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
                       <td className="px-6 py-4">
-                        <p className="text-sm font-semibold text-gray-900">{record.studentName}</p>
+                        <p className="text-sm font-semibold text-gray-900">{record.name}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{record.nim}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{record.date}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{record.time}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 font-semibold">{record.total_attendance}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(record.status)}`}>
-                          {getStatusIcon(record.status)}
-                          {record.status === 'present' ? 'Hadir' : record.status === 'late' ? 'Terlambat' : 'Tidak Hadir'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${record.confidence > 90 ? 'bg-green-500' : record.confidence > 80 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                              style={{ width: `${record.confidence}%` }}
-                            ></div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`h-2 rounded-full transition-all ${
+                                  record.attendance_rate >= 80 ? 'bg-green-500' : record.attendance_rate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${record.attendance_rate}%` }}
+                              ></div>
+                            </div>
                           </div>
-                          <span className="text-xs font-semibold text-gray-700 w-12 text-right">
-                            {record.confidence > 0 ? `${record.confidence}%` : '-'}
+                          <span className={`text-sm font-semibold ${
+                            record.attendance_rate >= 80 ? 'text-green-600' : record.attendance_rate >= 60 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {record.attendance_rate}%
                           </span>
                         </div>
                       </td>
@@ -325,29 +405,14 @@ const AttendancePage = () => {
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                Menampilkan {mockAttendance.length} dari {mockAttendance.length} data
-              </p>
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">
-                  Previous
-                </button>
-                <button className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm font-semibold">
-                  1
-                </button>
-                <button className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
-                  Next
-                </button>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
     </motion.div>
   );
 };
+
+// Helper functions removed - no longer needed with backend data
 
 export default AttendancePage;

@@ -49,6 +49,11 @@ export const AdminSidebar = ({
       icon: <Users className="w-5 h-5" />,
     },
     {
+      name: 'Manajemen Kelas',
+      path: '/admin/classrooms',
+      icon: <Users className="w-5 h-5" />,
+    },
+    {
       name: 'Laporan Kehadiran',
       path: '/admin/attendance',
       icon: <FileText className="w-5 h-5" />,

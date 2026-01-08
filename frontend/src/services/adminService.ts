@@ -99,20 +99,152 @@ export const adminService = {
   },
 
   /**
-   * Export attendance to CSV
+   * Export attendance report to CSV
    */
-  async exportAttendanceCSV(params?: AttendanceFilter): Promise<Blob> {
-    const response = await api.get('/admin/students/export', {
-      params,
+  async exportAttendanceCSV(params: {
+    start_date: string;
+    end_date: string;
+    kelas?: string;
+  }): Promise<Blob> {
+    const response = await api.get('/admin/report', {
+      params: { ...params, format: 'csv' },
       responseType: 'blob',
     });
     return response.data;
   },
 
   /**
-   * Delete attendance record
+   * Get attendance report (JSON)
    */
-  async deleteAttendance(id: number): Promise<void> {
-    await api.delete(`/admin/attendance/${id}`);
+  async getAttendanceReport(params: {
+    start_date: string;
+    end_date: string;
+    kelas?: string;
+  }): Promise<any> {
+    const response = await api.get('/admin/report', {
+      params: { ...params, format: 'json' },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get date-specific statistics
+   */
+  async getDateStatistics(params: {
+    target_date: string;
+    kelas?: string;
+  }): Promise<any> {
+    const response = await api.get('/admin/statistics/date', { params });
+    return response.data;
+  },
+
+  /**
+   * Get user details with attendance history
+   */
+  async getUserDetails(id: number): Promise<any> {
+    const response = await api.get(`/admin/students/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Get user attendance history
+   */
+  async getUserAttendanceHistory(userId: number, params?: {
+    skip?: number;
+    limit?: number;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<any> {
+    const response = await api.get(`/admin/students/${userId}/attendance`, { params });
+    return response.data;
+  },
+
+  /**
+   * Bulk import students from CSV
+   */
+  async importStudentsCSV(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/admin/students/import-csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  /**
+   * Admin submit attendance on behalf of student
+   */
+  async submitAttendance(imageBase64: string): Promise<any> {
+    const response = await api.post('/admin/submit-attendance', {
+      image_base64: imageBase64,
+    });
+    return response.data;
+  },
+
+  /**
+   * =================
+   * KELAS MANAGEMENT
+   * =================
+   */
+
+  /**
+   * Get all kelas with pagination and filters
+   */
+  async getKelas(params?: {
+    skip?: number;
+    limit?: number;
+    search?: string;
+    is_active?: boolean;
+  }): Promise<any> {
+    const response = await api.get('/admin/classrooms', { params });
+    // backend currently returns a PaginatedResponse with `items` field
+    // normalize to return the items array for list rendering
+    return response.data?.items ?? response.data;
+  },
+
+  /**
+   * Get kelas options for dropdown (only active)
+   */
+  async getKelasOptions(): Promise<Array<{ value: string; label: string; id: number }>> {
+    const response = await api.get('/admin/classrooms/options/list');
+    return response.data;
+  },
+
+  /**
+   * Get kelas detail by ID
+   */
+  async getKelasDetail(id: number): Promise<any> {
+    const response = await api.get(`/admin/classrooms/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Create new kelas
+   */
+  async createKelas(data: {
+    code: string;
+    name: string;
+    description?: string;
+    capacity?: number;
+    academic_year?: string;
+    semester?: number;
+  }): Promise<any> {
+    const response = await api.post('/admin/classrooms', data);
+    return response.data;
+  },
+
+  /**
+   * Update kelas
+   */
+  async updateKelas(id: number, data: any): Promise<any> {
+    const response = await api.put(`/admin/classrooms/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete kelas
+   */
+  async deleteKelas(id: number): Promise<void> {
+    await api.delete(`/admin/classrooms/${id}`);
   },
 };

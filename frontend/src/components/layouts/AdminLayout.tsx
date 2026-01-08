@@ -1,12 +1,25 @@
-import { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { toast } from 'react-hot-toast';
-import { AdminSidebar } from '../features/admin/AdminSidebar';
+import { 
+  LayoutDashboard, 
+  Users, 
+  ClipboardCheck, 
+  School, 
+  Settings, 
+  LogOut,
+  Camera
+} from 'lucide-react';
+import { Shell, ShellContent } from './Shell';
+import { 
+  SidebarHeader, 
+  SidebarContent, 
+  SidebarFooter, 
+  SidebarGroup, 
+  SidebarItem 
+} from './Sidebar';
 
 const AdminLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,79 +31,110 @@ const AdminLayout = () => {
       navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);
+      toast.error('Gagal logout');
     }
   };
 
-  const menuItems = [
+  const mainMenuItems = [
     {
-      name: 'Dashboard',
+      label: 'Dashboard',
       path: '/admin/dashboard',
+      icon: <LayoutDashboard size={20} />,
     },
     {
-      name: 'Manajemen Siswa',
+      label: 'Manajemen Siswa',
       path: '/admin/students',
+      icon: <Users size={20} />,
     },
     {
-      name: 'Laporan Kehadiran',
+      label: 'Manajemen Kelas',
+      path: '/admin/classrooms',
+      icon: <School size={20} />,
+    },
+    {
+      label: 'Laporan Kehadiran',
       path: '/admin/attendance',
-    },
-    {
-      name: 'Pengaturan',
-      path: '/admin/settings',
+      icon: <ClipboardCheck size={20} />,
     },
   ];
 
-  const getCurrentPageName = () => {
-    const currentItem = menuItems.find(item => item.path === location.pathname);
-    return currentItem?.name || 'Admin Panel';
-  };
+  const systemMenuItems = [
+    {
+      label: 'Pengaturan',
+      path: '/admin/settings',
+      icon: <Settings size={20} />,
+    },
+  ];
+
+  const sidebar = (
+    <>
+      <SidebarHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-accent-400 to-accent-600 text-white">
+            <Camera size={24} />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-white">FahrenCenter</span>
+            <span className="text-xs text-neutral-300">Smart Attendance</span>
+          </div>
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup label="Main Menu">
+          {mainMenuItems.map((item) => (
+            <SidebarItem
+              key={item.path}
+              icon={item.icon}
+              label={item.label}
+              active={location.pathname === item.path}
+              onClick={() => navigate(item.path)}
+            />
+          ))}
+        </SidebarGroup>
+
+        <SidebarGroup label="System">
+          {systemMenuItems.map((item) => (
+            <SidebarItem
+              key={item.path}
+              icon={item.icon}
+              label={item.label}
+              active={location.pathname === item.path}
+              onClick={() => navigate(item.path)}
+            />
+          ))}
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <div className="flex items-center gap-3 mb-3 px-2 py-2 rounded-lg bg-white/5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-accent-400 to-accent-600 text-sm font-bold text-white">
+            {user?.name?.charAt(0).toUpperCase() || 'A'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">
+              {user?.name || 'Admin'}
+            </p>
+            <p className="text-xs text-neutral-300 truncate">Administrator</p>
+          </div>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-neutral-100 transition-colors hover:bg-danger-500 hover:text-white"
+        >
+          <LogOut size={18} />
+          <span>Logout</span>
+        </button>
+      </SidebarFooter>
+    </>
+  );
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
-      {/* Modern Sidebar Component */}
-      <AdminSidebar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        userName={user?.name || 'Admin'}
-        userNim={user?.nim || 'N/A'}
-        onLogout={handleLogout}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Modern Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-8 py-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                {getCurrentPageName()}
-              </h2>
-              <p className="text-sm text-slate-500 mt-1">
-                Welcome back, {user?.name}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="text-right hidden md:block">
-                <p className="text-sm font-semibold text-gray-900">{user?.name}</p>
-                <p className="text-xs text-gray-500 flex items-center gap-1 justify-end">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  Administrator
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg">
-                {user?.name.charAt(0).toUpperCase()}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-8">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+    <Shell sidebar={sidebar}>
+      <ShellContent>
+        <Outlet />
+      </ShellContent>
+    </Shell>
   );
 };
 

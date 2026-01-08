@@ -137,6 +137,104 @@ async def get_all_students(
     )
 
 
+@router.get("/students/{user_id}", response_model=UserWithStats)
+async def get_student_detail(
+    user_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed information about a specific student.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Get user statistics
+    stats = attendance_service.get_user_statistics(db, user.id)
+    
+    # Get face encodings count
+    encodings_count = db.query(FaceEncoding).filter(
+        FaceEncoding.user_id == user.id
+    ).count()
+    
+    return UserWithStats(
+        id=user.id,
+        nim=user.nim,
+        name=user.name,
+        email=user.email,
+        role=user.role,
+        kelas=user.kelas,
+        is_active=user.is_active,
+        has_face=user.has_face,
+        created_at=user.created_at,
+        total_attendance=stats["total_attendance"],
+        attendance_rate=stats["attendance_rate"],
+        current_streak=stats["current_streak"],
+        encodings_count=encodings_count
+    )
+
+
+@router.get("/students/{user_id}/attendance", response_model=PaginatedResponse[AbsensiResponse])
+async def get_student_attendance(
+    user_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=100),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get attendance history for a specific student.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Build query
+    query = db.query(Absensi).filter(Absensi.user_id == user_id)
+    
+    if start_date:
+        query = query.filter(Absensi.date >= start_date)
+    if end_date:
+        query = query.filter(Absensi.date <= end_date)
+    
+    # Order by date descending (most recent first)
+    query = query.order_by(Absensi.date.desc(), Absensi.timestamp.desc())
+    
+    # Get total count
+    total = query.count()
+    
+    # Get paginated results
+    attendance_list = query.offset(skip).limit(limit).all()
+    
+    # Build response
+    items = [
+        AbsensiResponse(
+            id=att.id,
+            user_id=att.user_id,
+            nim=user.nim,
+            name=user.name,
+            date=att.date,
+            timestamp=att.timestamp,
+            status=att.status,
+            confidence=att.confidence,
+            already_submitted=False,
+            message=f"Absensi pada {att.timestamp.strftime('%H:%M:%S')}"
+        )
+        for att in attendance_list
+    ]
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1,
+        page_size=limit,
+        total_pages=(total + limit - 1) // limit
+    )
+
+
 @router.post("/students", response_model=UserResponse)
 async def create_student(
     user_data: UserCreate,

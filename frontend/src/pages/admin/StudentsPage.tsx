@@ -388,15 +388,26 @@ const StudentsPage = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {tab === 'siswa' && !user.has_face && (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={() => handleFaceRegistration(user.id)}
-                                icon={<Camera size={16} />}
-                              >
-                                Daftar Wajah
-                              </Button>
+                            {tab === 'siswa' && (
+                              user.has_face ? (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleFaceRegistration(user.id)}
+                                  icon={<Camera size={16} />}
+                                >
+                                  Perbarui Wajah
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="primary"
+                                  onClick={() => handleFaceRegistration(user.id)}
+                                  icon={<Camera size={16} />}
+                                >
+                                  Daftar Wajah
+                                </Button>
+                              )
                             )}
                             <Button
                               size="sm"

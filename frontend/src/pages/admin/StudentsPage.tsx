@@ -301,7 +301,7 @@ const StudentsPage = () => {
                     setFilterKelas(e.target.value);
                     setPage(1);
                   }}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
                 >
                   <option value="">Semua Kelas</option>
                   {kelasOptions?.map((k: any) => (
@@ -319,7 +319,7 @@ const StudentsPage = () => {
                     );
                     setPage(1);
                   }}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-primary-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
                 >
                   <option value="">Semua Status</option>
                   <option value="true">Sudah Registrasi Wajah</option>
@@ -363,7 +363,7 @@ const StudentsPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.data?.map((user: any) => (
+                    {data?.items?.map((user: any) => (
                       <tr
                         key={user.id}
                         className="border-b border-neutral-100 dark:border-neutral-700/50 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors"

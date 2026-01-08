@@ -65,11 +65,11 @@ export const StudentLayout: React.FC = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gradient-to-br from-teal-600 to-teal-700 rounded-full flex items-center justify-center text-white font-bold">
-              {user?.nama_lengkap.charAt(0).toUpperCase()}
+              {user?.name.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{user?.nama_lengkap}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.nim || 'NIM not set'}</p>
+              <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.username || 'No username'}</p>
             </div>
           </div>
         </div>

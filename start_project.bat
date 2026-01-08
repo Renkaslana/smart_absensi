@@ -1,12 +1,12 @@
 @echo off
 REM start_project.bat
-REM Launcher untuk Smart Absensi - Inisialisasi Conda, Backend, Frontend
+REM Launcher untuk FahrenCenter Smart Attendance System
 REM Double-click dari Explorer untuk menjalankan
 
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo Smart Absensi Launcher
+echo FahrenCenter Smart Attendance System
 echo ========================================
 echo.
 
@@ -112,22 +112,22 @@ echo ========================================
 echo.
 
 REM Launch Backend di jendela baru
-echo [LAUNCH] Backend di http://127.0.0.1:8001
-start "Smart Absensi - Backend" cmd /k "call "%CONDA_BASE%\Scripts\activate.bat" "%CONDA_BASE%" && conda activate smart-absensi && cd /d "%~dp0backend" && echo Backend starting... && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
+echo [LAUNCH] Backend API di http://127.0.0.1:8001
+start "FahrenCenter Backend API" cmd /k "call "%CONDA_BASE%\Scripts\activate.bat" "%CONDA_BASE%" && conda activate smart-absensi && cd /d "%~dp0backend" && echo Backend starting... && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
 
 REM Tunggu sebentar agar backend sempat start
 timeout /t 3 /nobreak >nul
 
 REM Launch Frontend di jendela baru
-echo [LAUNCH] Frontend di http://localhost:3001
-start "Smart Absensi - Frontend" cmd /k "cd /d "%~dp0frontend" && echo Frontend starting... && npm run dev"
+echo [LAUNCH] Frontend Web di http://localhost:3001
+start "FahrenCenter Frontend Web" cmd /k "cd /d "%~dp0frontend" && echo Frontend starting... && npm run dev"
 
 echo.
 echo ========================================
 echo SELESAI!
 echo ========================================
-echo Backend: http://127.0.0.1:8001/docs
-echo Frontend: http://localhost:3001
+echo Backend API: http://127.0.0.1:8001/docs
+echo Frontend Web: http://localhost:3001
 echo.
 echo Jendela ini bisa ditutup.
 echo Backend dan Frontend berjalan di jendela terpisah.

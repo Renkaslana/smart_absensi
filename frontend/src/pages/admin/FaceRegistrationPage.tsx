@@ -25,6 +25,14 @@ const FaceRegistrationPage = () => {
   const [cameraReady, setCameraReady] = useState(false);
   const [autoCapture, setAutoCapture] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null); // 🌙 Countdown state (3, 2, 1, null)
+  
+  // 🌙 Track which conditions have been met (cumulative, don't reset)
+  const [conditionsMet, setConditionsMet] = useState({
+    faceDetected: false,
+    notBlurry: false,
+    notDark: false,
+    neutralPose: false,
+  });
 
   const MIN_IMAGES = 3;
   const MAX_IMAGES = 5;
@@ -61,7 +69,19 @@ const FaceRegistrationPage = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [stream]);
 
-  // 🌙 Auto capture with SMART liveness: 3 out of 4 checks for first photo, lenient for rest
+  // 🌙 Update conditionsMet (cumulative - once true, stays true)
+  useEffect(() => {
+    if (!autoCapture || capturedImages.length > 0) return; // Only for first photo
+    
+    setConditionsMet(prev => ({
+      faceDetected: prev.faceDetected || livenessResult.details.faceDetected,
+      notBlurry: prev.notBlurry || !livenessResult.details.isBlurry,
+      notDark: prev.notDark || !livenessResult.details.isDark,
+      neutralPose: prev.neutralPose || livenessResult.details.isNeutralPose,
+    }));
+  }, [livenessResult, autoCapture, capturedImages.length]);
+
+  // 🌙 Auto capture with cumulative condition checking
   useEffect(() => {
     if (!autoCapture || !cameraReady || capturedImages.length >= MAX_IMAGES || countdown !== null) {
       return; // Don't start new countdown if one is active
@@ -70,33 +90,31 @@ const FaceRegistrationPage = () => {
     const isFirstPhoto = capturedImages.length === 0;
 
     if (isFirstPhoto) {
-      // 🔒 FIRST PHOTO: Minimal 3 dari 4 kondisi harus hijau (mulut opsional)
-      const conditions = [
-        livenessResult.details.faceDetected,
-        !livenessResult.details.isBlurry,
-        !livenessResult.details.isDark,
-        livenessResult.details.isNeutralPose
+      // 🔒 FIRST PHOTO: Check cumulative conditions (at least 3 out of 4)
+      const metConditions = [
+        conditionsMet.faceDetected,
+        conditionsMet.notBlurry,
+        conditionsMet.notDark,
+        conditionsMet.neutralPose
       ];
-      const passedConditions = conditions.filter(c => c).length;
+      const passedCount = metConditions.filter(c => c).length;
       
-      // Minimal 3 kondisi terpenuhi dari 4 (mulut opsional)
-      if (passedConditions >= 3) {
-        // Start countdown: 3 → 2 → 1 → capture
+      // Start countdown when 3+ conditions have been met
+      if (passedCount >= 3) {
         setCountdown(3);
       }
     } else {
-      // ✅ SUBSEQUENT PHOTOS: Lenient check (face + quality only, no liveness)
+      // ✅ SUBSEQUENT PHOTOS: Lenient check (face + quality only)
       if (
         livenessResult.details.faceDetected &&
         !livenessResult.details.isBlurry &&
         !livenessResult.details.isDark &&
-        livenessResult.progress >= 40 // At least basic checks pass
+        livenessResult.progress >= 40
       ) {
-        // Start countdown for subsequent photos
         setCountdown(3);
       }
     }
-  }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown]);
+  }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown, conditionsMet]);
 
   // 🌙 Countdown effect: 3 → 2 → 1 → 0 (capture) → null (reset)
   useEffect(() => {
@@ -120,6 +138,12 @@ const FaceRegistrationPage = () => {
       
       if (capturedImages.length === 0) {
         resetBlinkCount(); // Reset after first photo
+        setConditionsMet({ // Reset cumulative conditions for next session
+          faceDetected: false,
+          notBlurry: false,
+          notDark: false,
+          neutralPose: false,
+        });
       }
       
       // Reset countdown after capture
@@ -316,13 +340,14 @@ const FaceRegistrationPage = () => {
                 {/* 🌙 Real-time Liveness Status */}
                 <div className="absolute top-2 sm:top-4 right-2 sm:right-4 flex flex-col gap-1 sm:gap-2 items-end">
                   {autoCapture && (() => {
-                    const conditions = [
-                      livenessResult.details.faceDetected,
-                      !livenessResult.details.isBlurry,
-                      !livenessResult.details.isDark,
-                      livenessResult.details.isNeutralPose
+                    // Calculate based on cumulative conditions
+                    const metConditions = [
+                      conditionsMet.faceDetected,
+                      conditionsMet.notBlurry,
+                      conditionsMet.notDark,
+                      conditionsMet.neutralPose
                     ];
-                    const passedCount = conditions.filter(c => c).length;
+                    const passedCount = metConditions.filter(c => c).length;
                     
                     return (
                       <>
@@ -335,23 +360,23 @@ const FaceRegistrationPage = () => {
                         
                         <div className="bg-black/70 backdrop-blur-sm rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs text-white space-y-0.5 sm:space-y-1 max-w-[180px] sm:max-w-none">
                           <div className="flex items-center gap-1.5 sm:gap-2">
-                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${livenessResult.details.faceDetected ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${conditionsMet.faceDetected ? 'bg-green-400' : 'bg-red-400'}`} />
                             <span className="truncate">Wajah: {livenessResult.details.faceSize}</span>
                           </div>
                           <div className="flex items-center gap-1.5 sm:gap-2">
-                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${!livenessResult.details.isBlurry ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${conditionsMet.notBlurry ? 'bg-green-400' : 'bg-red-400'}`} />
                             <span>Blur: {livenessResult.details.isBlurry ? 'Buram' : 'OK'}</span>
                           </div>
                           <div className="flex items-center gap-1.5 sm:gap-2">
-                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${!livenessResult.details.isDark ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${conditionsMet.notDark ? 'bg-green-400' : 'bg-red-400'}`} />
                             <span>Cahaya: {livenessResult.details.isDark ? 'Gelap' : 'OK'}</span>
                           </div>
                           <div className="flex items-center gap-1.5 sm:gap-2">
-                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${livenessResult.details.isNeutralPose ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${conditionsMet.neutralPose ? 'bg-green-400' : 'bg-yellow-400'}`} />
                             <span>Gerak: {livenessResult.details.isNeutralPose ? 'OK' : 'Belum'}</span>
                           </div>
                           <div className="text-center text-[9px] sm:text-[10px] text-yellow-300 mt-1 pt-1 border-t border-white/20">
-                            Min. 3 kondisi hijau
+                            Min. 3 kondisi hijau (kumulatif)
                           </div>
                         </div>
                       </>
@@ -420,6 +445,13 @@ const FaceRegistrationPage = () => {
                       onClick={() => {
                         setAutoCapture(!autoCapture);
                         if (!autoCapture) {
+                          // Reset conditions when starting auto capture
+                          setConditionsMet({
+                            faceDetected: false,
+                            notBlurry: false,
+                            notDark: false,
+                            neutralPose: false,
+                          });
                           toast.success('Auto capture diaktifkan! Foto akan diambil otomatis');
                         } else {
                           toast('Auto capture dinonaktifkan');

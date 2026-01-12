@@ -64,12 +64,33 @@ const PublicAttendancePage_New = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // Cleanup camera
+    // Cleanup camera on unmount
     useEffect(() => {
         return () => {
-            if (stream) stream.getTracks().forEach((track) => track.stop());
+            if (stream) {
+                console.log('🛑 Stopping camera (unmount)');
+                stream.getTracks().forEach((track) => track.stop());
+            }
         };
     }, [stream]);
+
+    // Auto-stop camera when page hidden (user switches tab/app)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden && stream) {
+                console.log('🛑 Stopping camera (page hidden)');
+                stream.getTracks().forEach((track) => track.stop());
+                setStream(null);
+                if (step !== 'idle' && step !== 'success' && step !== 'failed') {
+                    toast('Kamera dimatikan karena aplikasi tidak aktif', { icon: '⚠️' });
+                    handleReset();
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [stream, step]);
 
     const startCamera = async () => {
         try {
@@ -93,25 +114,32 @@ const PublicAttendancePage_New = () => {
     // ✅ FIX: Attach stream + play AFTER video element exists (proper sync)
     useEffect(() => {
         if (!stream || !videoRef.current) return;
-        if (!['liveness', 'capturing', 'recognizing'].includes(step)) return;
+        // Play video when in capturing, liveness, or recognizing step
+        if (step !== 'capturing' && step !== 'liveness' && step !== 'recognizing') return;
 
         const video = videoRef.current;
         video.srcObject = stream;
         video.muted = true;
         video.playsInline = true;
-        video.autoplay = true;
 
-        video.onloadedmetadata = async () => {
+        const playVideo = async () => {
             try {
                 await video.play();
-                console.log('VIDEO OK:', video.videoWidth, video.videoHeight);
-            } catch (e) {
-                console.error('PLAY FAILED', e);
+                console.log('✅ Video playing:', video.videoWidth, 'x', video.videoHeight);
+            } catch (err) {
+                console.error('❌ Video play failed:', err);
             }
         };
 
+        // Check readyState before playing
+        if (video.readyState >= 2) {
+            playVideo();
+        } else {
+            video.onloadeddata = playVideo;
+        }
+
         return () => {
-            video.onloadedmetadata = null;
+            video.onloadeddata = null;
         };
     }, [stream, step]);
 
@@ -282,23 +310,25 @@ const PublicAttendancePage_New = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-800 flex flex-col">
             {/* Header */}
-            <header className="bg-white/10 backdrop-blur-md border-b border-white/20 py-4 px-6">
+            <header className="bg-white/10 backdrop-blur-md border-b border-white/20 py-3 sm:py-4 px-3 sm:px-6">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-                            <span className="text-2xl">📚</span>
+                    <div className="flex items-center gap-2 sm:gap-4">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-xl flex items-center justify-center">
+                            <span className="text-xl sm:text-2xl">📚</span>
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-white">FahrenCenter</h1>
-                            <p className="text-sm text-white/80">Smart Attendance System</p>
+                            <h1 className="text-lg sm:text-xl font-bold text-white">FahrenCenter</h1>
+                            <p className="text-xs sm:text-sm text-white/80">Smart Attendance System</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3 sm:gap-6">
                         <div className="text-right">
-                            <div className="flex items-center gap-2 text-white text-2xl font-bold mb-1">
-                                <Clock className="w-6 h-6" />
-                                {formatTime(currentTime)}
+                            <div className="flex items-center gap-1 sm:gap-2 text-white text-lg sm:text-2xl font-bold mb-1">
+                                <Clock className="w-4 h-4 sm:w-6 sm:h-6" />
+                                <span className="hidden sm:inline">{formatTime(currentTime)}</span>
+                                <span className="sm:hidden">{formatTime(currentTime).slice(0, 5)}</span>
+                            </div>
                             </div>
                             <div className="text-white/80 text-sm">{formatDate(currentTime)}</div>
                         </div>
@@ -315,7 +345,7 @@ const PublicAttendancePage_New = () => {
             </header>
 
             {/* Main Content */}
-            <div className="flex-1 flex items-center justify-center p-6">
+            <div className="flex-1 flex items-center justify-center p-3 sm:p-6">
                 <div className="w-full max-w-5xl">
                     <AnimatePresence mode="wait">
                         {step === 'idle' && (
@@ -326,13 +356,13 @@ const PublicAttendancePage_New = () => {
                                 exit={{ opacity: 0, y: -20 }}
                                 className="text-center"
                             >
-                                <div className="bg-white rounded-3xl shadow-2xl p-12 max-w-2xl mx-auto">
-                                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-teal-600 to-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-                                        <Camera className="w-10 h-10 text-white" />
+                                <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-12 max-w-2xl mx-auto">
+                                    <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto bg-gradient-to-br from-teal-600 to-emerald-600 rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6 shadow-lg">
+                                        <Camera className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                                     </div>
 
-                                    <h2 className="text-3xl font-bold text-gray-900 mb-4">Absensi Wajah</h2>
-                                    <p className="text-gray-600 mb-8">
+                                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">Absensi Wajah</h2>
+                                    <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
                                         {livenessEnabled
                                             ? 'Sistem akan memverifikasi wajah Anda dengan deteksi kehidupan untuk keamanan'
                                             : 'Sistem akan melakukan pengenalan wajah untuk absensi Anda'}
@@ -368,15 +398,14 @@ const PublicAttendancePage_New = () => {
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="bg-white rounded-3xl shadow-2xl p-8 max-w-4xl mx-auto"
+                                className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl mx-auto"
                             >
                                 {/* Video Feed */}
-                                <div className="relative mb-6">
+                                <div className="relative mb-4 sm:mb-6">
                                     {/* ✅ FIX BUG #3: Remove bg-gray-900, let video show through */}
-                                    <div className="aspect-video rounded-2xl overflow-hidden shadow-inner relative bg-black">
+                                    <div className="aspect-video rounded-xl sm:rounded-2xl overflow-hidden shadow-inner relative bg-black">
                                         <video
                                             ref={videoRef}
-                                            autoPlay
                                             muted
                                             playsInline
                                             className="w-full h-full object-cover"
@@ -387,16 +416,16 @@ const PublicAttendancePage_New = () => {
                                         {step === 'capturing' && (
                                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                                 <div className="relative">
-                                                    {/* Oval Guide */}
+                                                    {/* Oval Guide - responsive sizing */}
                                                     <div
-                                                        className="w-72 h-96 border-4 border-emerald-400 rounded-full shadow-2xl"
+                                                        className="w-48 h-64 sm:w-64 sm:h-80 md:w-72 md:h-96 border-4 border-emerald-400 rounded-full shadow-2xl"
                                                         style={{
-                                                            boxShadow: 'none',
+                                                            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(16, 185, 129, 0.3)',
                                                         }}
                                                     />
                                                     {/* Instruction text */}
-                                                    <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 text-center bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg">
-                                                        <p className="text-white font-semibold text-sm whitespace-nowrap">
+                                                    <div className="absolute -bottom-12 sm:-bottom-16 left-1/2 transform -translate-x-1/2 text-center bg-black/60 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg">
+                                                        <p className="text-white font-semibold text-xs sm:text-sm whitespace-nowrap">
                                                             Posisikan wajah dalam oval
                                                         </p>
                                                     </div>
@@ -476,24 +505,24 @@ const PublicAttendancePage_New = () => {
                                 <div className="text-center">
                                     {step === 'capturing' && (
                                         <>
-                                            <p className="text-gray-700 text-lg font-medium mb-4">
+                                            <p className="text-gray-700 text-base sm:text-lg font-medium mb-3 sm:mb-4 px-4">
                                                 Posisikan wajah Anda dalam frame oval
                                             </p>
                                             <button
                                                 onClick={handleCapture}
-                                                className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold text-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl"
+                                                className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-semibold text-base sm:text-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl"
                                             >
                                                 📸 Ambil Foto Sekarang
                                             </button>
                                         </>
                                     )}
                                     {step === 'liveness' && (
-                                        <p className="text-gray-700 text-lg font-medium">
+                                        <p className="text-gray-700 text-base sm:text-lg font-medium px-4">
                                             Mohon tunggu, melakukan liveness detection...
                                         </p>
                                     )}
                                     {step === 'recognizing' && (
-                                        <p className="text-gray-700 text-lg font-medium">
+                                        <p className="text-gray-700 text-base sm:text-lg font-medium px-4">
                                             Mohon tunggu, memproses data wajah Anda...
                                         </p>
                                     )}
@@ -502,7 +531,7 @@ const PublicAttendancePage_New = () => {
                                 {/* Cancel Button */}
                                 <button
                                     onClick={handleReset}
-                                    className="mt-6 mx-auto block px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                    className="mt-4 sm:mt-6 mx-auto block px-4 py-2 sm:px-6 sm:py-2 text-sm sm:text-base border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                                 >
                                     Batal
                                 </button>
@@ -515,10 +544,10 @@ const PublicAttendancePage_New = () => {
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="bg-white rounded-3xl shadow-2xl p-12 max-w-2xl mx-auto"
+                                className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-12 max-w-2xl mx-auto"
                             >
                                 <div className="text-center">
-                                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-lg">
+                                    <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-lg">
                                         <CheckCircle className="w-10 h-10 text-white" />
                                     </div>
 

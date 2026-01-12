@@ -17,7 +17,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { Badge } from '../../components/ui/Feedback';
 import useMarkPublicAttendance from '../../hooks/usePublic';
-import useLivenessDetection from '../../hooks/useLivenessDetection';
+import { useLivenessDetection } from '../../hooks/useLivenessDetection';
 import settingsService from '../../services/settingsService';
 
 type AttendanceStep = 'idle' | 'liveness' | 'capturing' | 'recognizing' | 'success' | 'failed';

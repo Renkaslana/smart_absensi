@@ -16,11 +16,21 @@ import {
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Feedback';
 import { useStudentDashboard } from '../../hooks/useStudent';
+import studentService from '../../services/studentService';
+import { useQuery } from '@tanstack/react-query';
 
 const Dashboard: React.FC = () => {
   const { data: dashboardData, isLoading, error } = useStudentDashboard();
 
-  // 🌙 Dummy data for schedule and activity (will integrate later)
+  // Fetch recent attendance records
+  const { data: recentAttendanceData } = useQuery({
+    queryKey: ['recent-attendance'],
+    queryFn: () => studentService.getAttendanceHistory({ page: 1, page_size: 5 }),
+  });
+
+  const recentActivity = recentAttendanceData?.data || [];
+
+  // 🌙 Dummy data for schedule (will integrate later when schedule API ready)
   const todaySchedule = [
     {
       id: 1,
@@ -39,36 +49,6 @@ const Dashboard: React.FC = () => {
       ruangan: 'Kelas 12A',
       guru: 'Bu Sarah',
       status: 'upcoming',
-    },
-  ];
-
-  const recentActivity = [
-    {
-      id: 1,
-      tanggal: '2026-01-08',
-      waktu: '08:05',
-      mata_pelajaran: 'Matematika',
-      status: 'hadir' as const,
-      method: 'face_recognition' as const,
-      confidence: 95,
-    },
-    {
-      id: 2,
-      tanggal: '2026-01-07',
-      waktu: '10:32',
-      mata_pelajaran: 'Bahasa Inggris',
-      status: 'hadir' as const,
-      method: 'face_recognition' as const,
-      confidence: 92,
-    },
-    {
-      id: 3,
-      tanggal: '2026-01-06',
-      waktu: '14:15',
-      mata_pelajaran: 'Fisika',
-      status: 'hadir' as const,
-      method: 'manual' as const,
-      confidence: null,
     },
   ];
 

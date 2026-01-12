@@ -149,6 +149,7 @@ async def get_all_attendance(
 async def get_all_students(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=1000),
+    search: Optional[str] = None,
     kelas: Optional[str] = None,
     has_face: Optional[bool] = None,
     current_admin: User = Depends(get_current_admin),
@@ -156,10 +157,17 @@ async def get_all_students(
 ):
     """
     Get all students with face registration status and statistics.
-    Supports filtering by class and face registration status.
+    Supports filtering by class, face registration status, and search by name/NIM.
     """
     # Build query
     query = db.query(User).filter(User.role == "user")
+    
+    # Search by name or NIM
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (User.name.ilike(search_pattern)) | (User.nim.ilike(search_pattern))
+        )
     
     if kelas:
         query = query.filter(User.kelas == kelas)

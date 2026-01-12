@@ -30,6 +30,16 @@ const LandingPage: React.FC = () => {
     return user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/student';
   };
 
+  // Helper function to display role in Indonesian
+  const getRoleDisplay = (role: string) => {
+    const roleMap: Record<string, string> = {
+      'user': 'Siswa',
+      'admin': 'Administrator',
+      'teacher': 'Guru'
+    };
+    return roleMap[role] || role;
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navbar */}
@@ -67,7 +77,7 @@ const LandingPage: React.FC = () => {
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-semibold text-gray-900">{user.name}</p>
-                      <p className="text-xs text-gray-600 capitalize">{user.role}</p>
+                      <p className="text-xs text-gray-600">{getRoleDisplay(user.role)}</p>
                     </div>
                   </div>
 

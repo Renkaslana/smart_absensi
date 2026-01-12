@@ -13,7 +13,7 @@ import LandingPage from './pages/public/LandingPage';
 import LoginPage from './pages/public/LoginPage';
 import RegisterPage from './pages/public/RegisterPage';
 import StudentRegistrationPage from './pages/public/StudentRegistrationPage';
-import PublicAttendancePage from './pages/public/PublicAttendancePage';
+import PublicAttendancePage from './pages/public/PublicAttendancePage_New';
 
 // Student Pages
 import Dashboard from './pages/student/Dashboard';

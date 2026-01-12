@@ -76,6 +76,11 @@ class AttendanceRecord(BaseModel):
     
     class Config:
         from_attributes = True
+        # Allow timezone-aware datetime to be serialized
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+            date: lambda v: v.isoformat() if v else None
+        }
 
 
 class AttendanceHistoryResponse(BaseModel):

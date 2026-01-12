@@ -199,6 +199,16 @@ const PublicAttendancePage_New = () => {
         toast.success('Posisikan wajah Anda dalam frame oval', { icon: '📸' });
     };
 
+    // Auto-proceed when liveness detection completes
+    useEffect(() => {
+        if (step === 'liveness' && liveness.progress.passedCount >= (livenessSettings?.min_checks || 2)) {
+            liveness.stopDetection();
+            toast.success('✅ Liveness berhasil! Mengenali wajah...');
+            setStep('recognizing');
+            handleRecognize();
+        }
+    }, [step, liveness.progress.passedCount, livenessSettings]);
+
     // Manual capture trigger - runs REAL liveness check if enabled, then recognizes
     const handleCapture = async () => {
         if (livenessEnabled && !liveness.modelsLoaded) {
@@ -210,29 +220,16 @@ const PublicAttendancePage_New = () => {
             // Run REAL liveness detection
             setStep('liveness');
             toast('Ikuti instruksi liveness detection...', { icon: '👀' });
-
             liveness.startDetection();
 
-            // Wait for liveness to complete (with timeout)
-            const timeout = setTimeout(() => {
-                liveness.stopDetection();
-                if (liveness.progress.passedCount < (livenessSettings?.min_checks || 2)) {
-                    toast.error('Liveness detection gagal. Silakan coba lagi.');
+            // Set timeout for detection failure
+            setTimeout(() => {
+                if (step === 'liveness' && liveness.progress.passedCount < (livenessSettings?.min_checks || 2)) {
+                    liveness.stopDetection();
+                    toast.error('Liveness detection timeout. Silakan coba lagi.');
                     handleReset();
                 }
             }, (livenessSettings?.timeout || 30) * 1000);
-
-            // Poll for completion
-            const checkInterval = setInterval(() => {
-                if (liveness.progress.passedCount >= (livenessSettings?.min_checks || 2)) {
-                    clearInterval(checkInterval);
-                    clearTimeout(timeout);
-                    liveness.stopDetection();
-                    toast.success('✅ Liveness berhasil! Mengenali wajah...');
-                    setStep('recognizing');
-                    handleRecognize();
-                }
-            }, 500);
         } else {
             // No liveness, directly recognize
             setStep('recognizing');

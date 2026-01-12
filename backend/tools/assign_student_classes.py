@@ -1,6 +1,11 @@
 """
 Script to assign random classes to students.
-Will assign random classes from SD to SMA, except for NIM 24225046 which gets SMA.
+Uses the international naming structure from seed_kelas.py:
+- SD: SD-G1-A to SD-G6-B (Grades 1-6, sections A-B)
+- SMP: SMP-G7-A to SMP-G9-C (Grades 7-9, sections A-B-C)
+- SMA: SMA-CAM-IGCSE-SCI, SMA-CAM-AS-HUM, SMA-CAM-ALEVEL-DIP (Cambridge-style)
+- SMK: SMK-TI-INT, SMK-ENG-INT, SMK-BA-GLO (Technical international)
+Special: NIM 24225046 gets SMA only.
 """
 import sys
 import os
@@ -13,18 +18,17 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.user import User
 
-# Class options
+# Class options matching seed_kelas.py structure
 CLASSES = {
-    'SD': ['1A', '1B', '2A', '2B', '3A', '3B', '4A', '4B', '5A', '5B', '6A', '6B'],
-    'SMP': ['7A', '7B', '8A', '8B', '9A', '9B'],
-    'SMA': ['10 IPA 1', '10 IPA 2', '10 IPS 1', '10 IPS 2',
-            '11 IPA 1', '11 IPA 2', '11 IPS 1', '11 IPS 2',
-            '12 IPA 1', '12 IPA 2', '12 IPS 1', '12 IPS 2']
+    'SD': [f'SD-G{grade}-{section}' for grade in range(1, 7) for section in ['A', 'B']],
+    'SMP': [f'SMP-G{grade}-{section}' for grade in range(7, 10) for section in ['A', 'B', 'C']],
+    'SMA': ['SMA-CAM-IGCSE-SCI', 'SMA-CAM-AS-HUM', 'SMA-CAM-ALEVEL-DIP'],
+    'SMK': ['SMK-TI-INT', 'SMK-ENG-INT', 'SMK-BA-GLO']
 }
 
 def get_random_class():
-    """Get a random class from SD, SMP, or SMA"""
-    level = random.choice(['SD', 'SMP', 'SMA'])
+    """Get a random class from SD, SMP, SMA, or SMK"""
+    level = random.choice(['SD', 'SMP', 'SMA', 'SMK'])
     return random.choice(CLASSES[level])
 
 def assign_classes(db: Session):

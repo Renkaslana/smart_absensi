@@ -61,7 +61,7 @@ const FaceRegistrationPage = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [stream]);
 
-  // 🌙 Auto capture with SMART liveness: full check for first photo, lenient for rest
+  // 🌙 Auto capture with SMART liveness: 3 out of 4 checks for first photo, lenient for rest
   useEffect(() => {
     if (!autoCapture || !cameraReady || capturedImages.length >= MAX_IMAGES || countdown !== null) {
       return; // Don't start new countdown if one is active
@@ -70,8 +70,17 @@ const FaceRegistrationPage = () => {
     const isFirstPhoto = capturedImages.length === 0;
 
     if (isFirstPhoto) {
-      // 🔒 FIRST PHOTO: Strict liveness check (mouth + head movement)
-      if (livenessResult.canCapture && livenessResult.status === 'pass') {
+      // 🔒 FIRST PHOTO: Minimal 3 dari 4 kondisi harus hijau (mulut opsional)
+      const conditions = [
+        livenessResult.details.faceDetected,
+        !livenessResult.details.isBlurry,
+        !livenessResult.details.isDark,
+        livenessResult.details.isNeutralPose
+      ];
+      const passedConditions = conditions.filter(c => c).length;
+      
+      // Minimal 3 kondisi terpenuhi dari 4 (mulut opsional)
+      if (passedConditions >= 3) {
         // Start countdown: 3 → 2 → 1 → capture
         setCountdown(3);
       }
@@ -271,7 +280,7 @@ const FaceRegistrationPage = () => {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Camera Preview */}
         <Card>
           <CardContent>
@@ -305,48 +314,49 @@ const FaceRegistrationPage = () => {
                 </div>
 
                 {/* 🌙 Real-time Liveness Status */}
-                <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
-                  <Badge 
-                    variant={
-                      livenessResult.status === 'pass' 
-                        ? 'success' 
-                        : livenessResult.status === 'fail' 
-                        ? 'danger' 
-                        : 'warning'
-                    }
-                  >
-                    {livenessResult.message}
-                  </Badge>
-                  
-                  {autoCapture && (
-                    <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-white space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${livenessResult.details.faceDetected ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span>Wajah: {livenessResult.details.faceSize}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${!livenessResult.details.isBlurry ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span>Blur: {livenessResult.details.isBlurry ? 'Buram' : 'OK'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${livenessResult.details.blinkCount > 0 ? 'bg-green-400' : 'bg-yellow-400'}`} />
-                        <span>Mulut: {livenessResult.details.blinkCount}x</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${livenessResult.details.isNeutralPose ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span>Gerakan: {livenessResult.details.isNeutralPose ? 'OK' : 'Belum'}</span>
-                      </div>
-                      <div className="w-full bg-neutral-700 rounded-full h-1.5 mt-2">
-                        <div 
-                          className="bg-accent-500 h-1.5 rounded-full transition-all duration-300"
-                          style={{ width: `${livenessResult.progress}%` }}
-                        />
-                      </div>
-                      <div className="text-center text-[10px] text-neutral-300">
-                        {livenessResult.progress}% Complete
-                      </div>
-                    </div>
-                  )}
+                <div className="absolute top-2 sm:top-4 right-2 sm:right-4 flex flex-col gap-1 sm:gap-2 items-end">
+                  {autoCapture && (() => {
+                    const conditions = [
+                      livenessResult.details.faceDetected,
+                      !livenessResult.details.isBlurry,
+                      !livenessResult.details.isDark,
+                      livenessResult.details.isNeutralPose
+                    ];
+                    const passedCount = conditions.filter(c => c).length;
+                    
+                    return (
+                      <>
+                        <Badge 
+                          variant={passedCount >= 3 ? 'success' : passedCount >= 2 ? 'warning' : 'danger'}
+                          className="text-xs sm:text-sm"
+                        >
+                          {passedCount}/4 Kondisi ✓
+                        </Badge>
+                        
+                        <div className="bg-black/70 backdrop-blur-sm rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs text-white space-y-0.5 sm:space-y-1 max-w-[180px] sm:max-w-none">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${livenessResult.details.faceDetected ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <span className="truncate">Wajah: {livenessResult.details.faceSize}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${!livenessResult.details.isBlurry ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <span>Blur: {livenessResult.details.isBlurry ? 'Buram' : 'OK'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${!livenessResult.details.isDark ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <span>Cahaya: {livenessResult.details.isDark ? 'Gelap' : 'OK'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${livenessResult.details.isNeutralPose ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                            <span>Gerak: {livenessResult.details.isNeutralPose ? 'OK' : 'Belum'}</span>
+                          </div>
+                          <div className="text-center text-[9px] sm:text-[10px] text-yellow-300 mt-1 pt-1 border-t border-white/20">
+                            Min. 3 kondisi hijau
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Capture Flash Effect */}
@@ -377,13 +387,14 @@ const FaceRegistrationPage = () => {
               </div>
 
               {/* 🌙 Manual Camera Control */}
-              <div className="flex items-center justify-center gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-4">
                 {!cameraReady ? (
                   <Button
                     variant="primary"
                     size="lg"
                     onClick={startCamera}
                     icon={<Camera size={20} />}
+                    className="w-full sm:w-auto"
                   >
                     Aktifkan Kamera
                   </Button>
@@ -398,6 +409,7 @@ const FaceRegistrationPage = () => {
                         toast('Kamera dimatikan');
                       }}
                       icon={<X size={20} />}
+                      className="w-full sm:w-auto"
                     >
                       Matikan Kamera
                     </Button>
@@ -414,6 +426,7 @@ const FaceRegistrationPage = () => {
                         }
                       }}
                       disabled={capturedImages.length >= MAX_IMAGES}
+                      className="w-full sm:w-auto"
                     >
                       {autoCapture ? '⏸️ Stop Auto' : '▶️ Auto Capture'}
                     </Button>
@@ -421,42 +434,41 @@ const FaceRegistrationPage = () => {
                 )}
               </div>
 
-              <div className="flex items-center justify-center gap-4">
-
+              <div className="flex items-center justify-center gap-2 sm:gap-4">
                 <Button
                   variant="primary"
                   size="lg"
                   onClick={captureImage}
                   disabled={!cameraReady || capturedImages.length >= MAX_IMAGES || autoCapture}
                   icon={<Camera size={20} />}
+                  className="w-full sm:w-auto"
                 >
                   Ambil Foto ({capturedImages.length}/{MAX_IMAGES})
                 </Button>
               </div>
 
               {/* Instructions */}
-              <div className="bg-accent-50 dark:bg-accent-900/20 border border-accent-200 dark:border-accent-800 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle size={20} className="text-accent-600 dark:text-accent-400 flex-shrink-0 mt-0.5" />
+              <div className="bg-accent-50 dark:bg-accent-900/20 border border-accent-200 dark:border-accent-800 rounded-lg p-3 sm:p-4">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <AlertCircle size={18} className="text-accent-600 dark:text-accent-400 flex-shrink-0 mt-0.5 sm:size-5" />
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-accent-900 dark:text-accent-100">
-                      🌙 Anti-Spoofing Protection Aktif
+                    <p className="text-xs sm:text-sm font-semibold text-accent-900 dark:text-accent-100">
+                      🌙 Anti-Spoofing Protection (3/4 Kondisi)
                     </p>
-                    <ul className="text-xs text-accent-700 dark:text-accent-300 space-y-1">
-                      <li>• Pastikan pencahayaan cukup terang (tidak gelap/overexposed)</li>
-                      <li>• Wajah menghadap kamera langsung (frontal, tidak miring)</li>
-                      <li>• <strong>Foto pertama:</strong> Buka mulut (A-O) + gerakkan kepala sedikit</li>
-                      <li>• <strong>Foto selanjutnya:</strong> Auto capture (face + quality saja)</li>
-                      <li>• Gunakan wajah asli (bukan foto atau layar)</li>
-                      <li>• Tahan kamera dengan stabil (hindari blur)</li>
+                    <ul className="text-[11px] sm:text-xs text-accent-700 dark:text-accent-300 space-y-1">
+                      <li>• <strong>Minimal 3 dari 4 kondisi harus hijau:</strong></li>
+                      <li className="ml-3">1. Wajah terdeteksi (frontal, tidak miring)</li>
+                      <li className="ml-3">2. Gambar tidak buram (tahan stabil)</li>
+                      <li className="ml-3">3. Pencahayaan cukup (tidak gelap/terang)</li>
+                      <li className="ml-3">4. Gerakan kepala (opsional)</li>
+                      <li>• <strong>Foto pertama:</strong> 3/4 kondisi → auto scan</li>
+                      <li>• <strong>Foto selanjutnya:</strong> Kualitas gambar saja</li>
                       <li>• Minimal 3 foto, maksimal 5 foto</li>
                     </ul>
-                    <div className="mt-3 pt-3 border-t border-accent-200 dark:border-accent-700">
-                      <p className="text-[10px] text-accent-600 dark:text-accent-400">
-                        <strong>Liveness Detection:</strong> Foto pertama menggunakan full check 
-                        (mouth open + head movement) untuk memastikan wajah asli. 
-                        Foto 2-5 hanya check kualitas gambar untuk pengambilan cepat.
-                        Threshold head movement diturunkan ke ~8° untuk kenyamanan.
+                    <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-accent-200 dark:border-accent-700">
+                      <p className="text-[9px] sm:text-[10px] text-accent-600 dark:text-accent-400">
+                        <strong>Smart Detection:</strong> Gerakan kepala/mulut dibuat opsional untuk kenyamanan. 
+                        Sistem akan otomatis memulai scan ketika minimal 3 kondisi terpenuhi.
                       </p>
                     </div>
                   </div>
@@ -481,7 +493,7 @@ const FaceRegistrationPage = () => {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 gap-2 sm:gap-4">
                 {capturedImages.map((image, index) => (
                   <div
                     key={index}

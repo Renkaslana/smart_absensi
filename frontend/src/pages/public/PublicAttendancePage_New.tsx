@@ -90,12 +90,37 @@ const PublicAttendancePage_New = () => {
     }
   };
 
-  // ✅ FIX: Attach stream AFTER video element exists (React timing fix)
+  // ✅ FIX: Attach stream + play AFTER video element exists (proper sync)
   useEffect(() => {
-    if (stream && videoRef.current && (step === 'liveness' || step === 'capturing' || step === 'recognizing')) {
-      console.log('[Camera] Attaching stream to video element');
-      videoRef.current.srcObject = stream;
+    if (!stream || !videoRef.current) return;
+    if (!(step === 'liveness' || step === 'capturing' || step === 'recognizing')) return;
+
+    const video = videoRef.current;
+
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+
+    const playVideo = async () => {
+      try {
+        await video.play();
+        console.log('✅ Video playing', video.videoWidth, video.videoHeight);
+      } catch (err) {
+        console.error('❌ Video play failed:', err);
+      }
+    };
+
+    // ⏳ Wait for frame to be ready before playing
+    if (video.readyState >= 2) {
+      playVideo();
+    } else {
+      video.onloadeddata = playVideo;
     }
+
+    // Cleanup
+    return () => {
+      video.onloadeddata = null;
+    };
   }, [stream, step]);
 
   const stopCamera = () => {
@@ -373,14 +398,9 @@ const PublicAttendancePage_New = () => {
                   <div className="aspect-video rounded-2xl overflow-hidden shadow-inner relative bg-black">
                     <video
                       ref={videoRef}
-                      autoPlay
-                      playsInline
                       muted
+                      playsInline
                       className="w-full h-full object-cover"
-                      onLoadedMetadata={() => {
-                        // ✅ Play only once, when metadata loaded
-                        videoRef.current?.play().catch(err => console.error('Video play error:', err));
-                      }}
                     />
 
                     {/* Liveness Overlay */}

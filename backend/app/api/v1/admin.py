@@ -73,6 +73,78 @@ async def get_dashboard(
     }
 
 
+@router.get("/attendance", response_model=PaginatedResponse[AbsensiResponse])
+async def get_all_attendance(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    kelas: Optional[str] = None,
+    user_id: Optional[int] = None,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all attendance records with optional filters.
+    Returns individual attendance records with student info.
+    Requires admin role.
+    """
+    # Build query with join to User table
+    query = db.query(Absensi).join(User, Absensi.user_id == User.id)
+    
+    # Apply filters
+    if start_date:
+        query = query.filter(Absensi.date >= start_date)
+    if end_date:
+        query = query.filter(Absensi.date <= end_date)
+    if kelas:
+        query = query.filter(User.kelas == kelas)
+    if user_id:
+        query = query.filter(Absensi.user_id == user_id)
+    
+    # Order by date and time descending (most recent first)
+    query = query.order_by(Absensi.date.desc(), Absensi.timestamp.desc())
+    
+    # Get total count
+    total = query.count()
+    
+    # Get paginated results
+    attendance_list = query.offset(skip).limit(limit).all()
+    
+    # Build response with user information
+    items = []
+    for att in attendance_list:
+        user = db.query(User).filter(User.id == att.user_id).first()
+        if user:
+            items.append(AbsensiResponse(
+                id=att.id,
+                user_id=att.user_id,
+                nim=user.nim,
+                name=user.name,
+                date=att.date,
+                time_in=att.timestamp.strftime('%H:%M:%S') if att.timestamp else None,
+                timestamp=att.timestamp,
+                status=att.status or "hadir",
+                confidence=att.confidence,
+                image_path=att.image_path,
+                user={
+                    "nim": user.nim,
+                    "name": user.name,
+                    "kelas": user.kelas
+                },
+                already_submitted=False,
+                message=f"Absensi pada {att.timestamp.strftime('%H:%M:%S')}" if att.timestamp else ""
+            ))
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1 if limit > 0 else 1,
+        page_size=limit,
+        total_pages=(total + limit - 1) // limit if limit > 0 else 1
+    )
+
+
 @router.get("/students", response_model=PaginatedResponse[UserWithStats])
 async def get_all_students(
     skip: int = Query(0, ge=0),

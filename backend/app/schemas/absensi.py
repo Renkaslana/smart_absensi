@@ -26,9 +26,12 @@ class AbsensiResponse(BaseModel):
     nim: str
     name: str
     date: date
+    time_in: Optional[str] = None  # Time in HH:MM:SS format
     timestamp: datetime
     status: str
     confidence: Optional[float] = None
+    image_path: Optional[str] = None
+    user: Optional[dict] = None  # User details (nim, name, kelas)
     already_submitted: Optional[bool] = False  # Flag untuk warning duplikasi
     message: Optional[str] = None  # Pesan informatif
     
@@ -63,14 +66,13 @@ class TodayAttendanceResponse(BaseModel):
 class AttendanceRecord(BaseModel):
     """Individual attendance record."""
     id: int
-    tanggal: date
-    waktu: str
-    mata_pelajaran: Optional[str] = None
-    guru: Optional[str] = None
+    date: date
+    timestamp: datetime
     status: str
-    method: Optional[str] = "manual"
     confidence: Optional[float] = None
-    keterangan: Optional[str] = None
+    image_path: Optional[str] = None
+    device_info: Optional[str] = None
+    ip_address: Optional[str] = None
     
     class Config:
         from_attributes = True

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
+
 import {
   Calendar,
   Download,
@@ -11,7 +12,9 @@ import {
   TrendingUp,
   Users,
   BarChart3,
+  AlertCircle,
 } from 'lucide-react';
+
 
 import { adminService } from '../../services/adminService';
 import { ShellHeader } from '../../components/layouts/Shell';
@@ -26,6 +29,56 @@ const AttendancePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // 🌙 Helper function to format date/time based on filter
+  const formatDateTime = (dateStr: string, timeStr: string, filter: string) => {
+    const date = new Date(dateStr);
+    
+    if (filter === 'today') {
+      // Hari ini: tampilkan waktu saja (08:15)
+      return timeStr;
+    } else if (filter === 'week') {
+      // Minggu: tampilkan hari dan waktu (Senin, 08:15)
+      const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' });
+      return `${dayName}, ${timeStr}`;
+    } else {
+      // 30 hari: tampilkan tanggal dan waktu (12 Jan, 08:15)
+      const formattedDate = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+      return `${formattedDate}, ${timeStr}`;
+    }
+  };
+
+  // 🌙 Helper function to generate automatic keterangan based on time
+  const getAutoKeterangan = (timeStr: string): string => {
+    if (!timeStr || typeof timeStr !== 'string') {
+      return '-';
+    }
+    
+    const timeParts = timeStr.split(':');
+    if (timeParts.length < 2) {
+      return '-';
+    }
+    
+    const [hours, minutes] = timeParts.map(Number);
+    if (isNaN(hours) || isNaN(minutes)) {
+      return '-';
+    }
+    
+    const totalMinutes = hours * 60 + minutes;
+    
+    // Before 7:00
+    if (totalMinutes < 7 * 60) {
+      return '🌟 Siswa rajin dan baik!';
+    }
+    // Between 7:00 - 7:59
+    else if (totalMinutes >= 7 * 60 && totalMinutes < 8 * 60) {
+      return '⚠️ Hampir telat, hati-hati!';
+    }
+    // After 8:00
+    else {
+      return '❌ Terlambat! Tingkatkan disiplin!';
+    }
+  };
 
   useEffect(() => {
     const today = new Date();
@@ -51,7 +104,7 @@ const AttendancePage = () => {
     }
   }, [dateFilter]);
 
-  const { data: reportData, isLoading } = useQuery({
+  const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['attendance-report', startDate, endDate],
     queryFn: () =>
       adminService.getAttendanceReport({
@@ -61,13 +114,29 @@ const AttendancePage = () => {
     enabled: !!startDate && !!endDate,
   });
 
+  // 🌙 Fetch detailed attendance records
+  const { data: attendanceRecords, isLoading: isLoadingRecords } = useQuery({
+    queryKey: ['attendance-details', startDate, endDate],
+    queryFn: () =>
+      adminService.getAttendance({
+        start_date: startDate,
+        end_date: endDate,
+        limit: 1000, // Get all records for the period
+      }),
+    enabled: !!startDate && !!endDate,
+  });
+
+  const isLoading = isLoadingReport || isLoadingRecords;
+
   const filteredAttendance =
-    reportData?.student_breakdown?.filter((record: any) =>
-      searchQuery
-        ? record.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          record.nim.toLowerCase().includes(searchQuery.toLowerCase())
-        : true
-    ) || [];
+    attendanceRecords?.items?.filter((record: any) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        record.user?.name?.toLowerCase().includes(query) ||
+        record.user?.nim?.toLowerCase().includes(query)
+      );
+    }) || [];
 
   const totalPresent = reportData?.overview?.by_status?.hadir || 0;
   const totalLate = reportData?.overview?.by_status?.terlambat || 0;
@@ -213,7 +282,7 @@ const AttendancePage = () => {
                 Detail Kehadiran
               </h3>
               <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Total: {reportData?.student_breakdown?.length || 0} • Menampilkan:{' '}
+                Total Record: {attendanceRecords?.total || 0} • Menampilkan:{' '}
                 {filteredAttendance.length}
               </p>
             </div>
@@ -234,58 +303,70 @@ const AttendancePage = () => {
                     <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
                       NIM
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                      Hadir
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Waktu Absen
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                      Terlambat
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Method
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                      Tidak Hadir
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                      Keterangan
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAttendance.map((record: any) => (
-                    <tr
-                      key={record.user_id}
-                      className="border-b border-neutral-100 dark:border-neutral-700/50 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors"
-                    >
-                      <td className="px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                        {record.name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
-                        {record.nim}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {record.hadir > 0 ? (
-                          <Badge variant="success" size="sm">
-                            {record.hadir}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-neutral-400">0</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {record.terlambat > 0 ? (
-                          <Badge variant="warning" size="sm">
-                            {record.terlambat}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-neutral-400">0</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {record.tidak_hadir > 0 ? (
-                          <Badge variant="danger" size="sm">
-                            {record.tidak_hadir}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-neutral-400">0</span>
-                        )}
+                  {filteredAttendance.length > 0 ? (
+                    filteredAttendance.map((record: any) => {
+                      const formattedDateTime = formatDateTime(record.date, record.time_in, dateFilter);
+                      const autoKeterangan = getAutoKeterangan(record.time_in);
+                      
+                      return (
+                        <tr
+                          key={record.id}
+                          className="border-b border-neutral-100 dark:border-neutral-700/50 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              {record.user?.name || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+                            {record.user?.nim || 'N/A'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-neutral-400" />
+                              <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                {formattedDateTime}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant={record.confidence >= 0.8 ? 'success' : 'warning'} size="sm">
+                              Face {record.confidence ? `${(record.confidence * 100).toFixed(0)}%` : 'Recognition'}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                                {autoKeterangan}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-3 text-neutral-500">
+                          <AlertCircle className="w-12 h-12 text-neutral-400" />
+                          <p>Tidak ada data kehadiran</p>
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

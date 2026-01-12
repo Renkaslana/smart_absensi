@@ -23,40 +23,37 @@ const AttendanceListPage = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // 🌙 Helper function to format date/time based on filter
-  const formatDateTime = (dateStr: string, timeStr: string, filter: string) => {
-    const date = new Date(dateStr);
+  // 🌙 Helper function to format date/time based on filter (matching admin pattern)
+  const formatDateTime = (timestampStr: string, filter: string) => {
+    const timestamp = new Date(timestampStr);
+    const timeStr = timestamp.toLocaleTimeString('id-ID', { 
+      hour: '2-digit', 
+      minute: '2-digit'
+    });
     
     if (filter === 'today') {
       // Hari ini: tampilkan waktu saja (08:15)
       return timeStr;
     } else if (filter === 'week') {
       // Minggu: tampilkan hari dan waktu (Senin, 08:15)
-      const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' });
+      const dayName = timestamp.toLocaleDateString('id-ID', { weekday: 'long' });
       return `${dayName}, ${timeStr}`;
     } else {
       // 30 hari: tampilkan tanggal dan waktu (12 Jan, 08:15)
-      const formattedDate = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+      const formattedDate = timestamp.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
       return `${formattedDate}, ${timeStr}`;
     }
   };
 
-  // 🌙 Helper function to generate automatic keterangan based on time
-  const getAutoKeterangan = (timeStr: string): string => {
-    if (!timeStr || typeof timeStr !== 'string') {
+  // 🌙 Helper function to generate automatic keterangan based on time (matching admin pattern)
+  const getAutoKeterangan = (timestampStr: string): string => {
+    if (!timestampStr) {
       return '-';
     }
     
-    const timeParts = timeStr.split(':');
-    if (timeParts.length < 2) {
-      return '-';
-    }
-    
-    const [hours, minutes] = timeParts.map(Number);
-    if (isNaN(hours) || isNaN(minutes)) {
-      return '-';
-    }
-    
+    const timestamp = new Date(timestampStr);
+    const hours = timestamp.getHours();
+    const minutes = timestamp.getMinutes();
     const totalMinutes = hours * 60 + minutes;
     
     // Before 7:00
@@ -112,13 +109,10 @@ const AttendanceListPage = () => {
 
   const filteredAttendance =
     attendanceData?.data?.filter((record: any) => {
-      // Filter by search query
+      // Filter by search query (status only since we don't have mata_pelajaran)
       if (!searchQuery) return true;
       const query = searchQuery.toLowerCase();
-      return (
-        record.mata_pelajaran?.toLowerCase().includes(query) ||
-        record.keterangan?.toLowerCase().includes(query)
-      );
+      return record.status?.toLowerCase().includes(query);
     }) || [];
 
   const getStatusBadge = (status: string) => {
@@ -247,10 +241,7 @@ const AttendanceListPage = () => {
                       No
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Waktu
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Mata Pelajaran
+                      Waktu Absen
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -259,7 +250,7 @@ const AttendanceListPage = () => {
                       Keterangan
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Metode
+                      Confidence
                     </th>
                   </tr>
                 </thead>
@@ -280,17 +271,12 @@ const AttendanceListPage = () => {
                           <Clock className="w-4 h-4 text-gray-400 mr-2" />
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {formatDateTime(record.tanggal, record.waktu, dateFilter)}
+                              {formatDateTime(record.timestamp, dateFilter)}
                             </div>
                             {dateFilter !== 'today' && (
-                              <div className="text-xs text-gray-500">{record.tanggal}</div>
+                              <div className="text-xs text-gray-500">{record.date}</div>
                             )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {record.mata_pelajaran || '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -301,16 +287,13 @@ const AttendanceListPage = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-700">
-                          {record.keterangan || getAutoKeterangan(record.waktu)}
+                          {getAutoKeterangan(record.timestamp)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={record.method === 'face_recognition' ? 'info' : 'default'}>
-                          {record.method === 'face_recognition' ? '🤖 AI' : '✍️ Manual'}
-                        </Badge>
                         {record.confidence && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {Math.round(record.confidence)}% akurat
+                          <div className="text-sm text-gray-700">
+                            {Math.round(record.confidence * 100)}% yakin
                           </div>
                         )}
                       </td>

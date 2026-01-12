@@ -23,8 +23,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', path: '/student', icon: <LayoutDashboard size={20} /> },
-  { name: 'Absensi Saya', path: '/student/attendance', icon: <ClipboardList size={20} /> },
-  { name: 'Daftar Absensi', path: '/student/attendance-list', icon: <Calendar size={20} /> },
+  { name: 'Daftar Absensi', path: '/student/attendance-list', icon: <ClipboardList size={20} /> },
   { name: 'Jadwal', path: '/student/schedule', icon: <Calendar size={20} /> },
   { name: 'Registrasi Wajah', path: '/student/face', icon: <ScanFace size={20} /> },
   { name: 'Profil', path: '/student/profile', icon: <User size={20} /> },

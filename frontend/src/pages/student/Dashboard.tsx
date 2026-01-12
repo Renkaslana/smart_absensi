@@ -272,7 +272,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 </Link>
 
-                <Link to="/student/attendance">
+                <Link to="/student/attendance-list">
                   <button className="w-full flex items-center gap-3 px-4 py-3 bg-white border-2 border-teal-600 text-teal-600 hover:bg-teal-50 rounded-xl transition-colors">
                     <ClipboardCheck size={20} />
                     <span className="font-medium">Riwayat Absensi</span>
@@ -304,7 +304,7 @@ const Dashboard: React.FC = () => {
                 <ClipboardCheck className="w-5 h-5 text-teal-600" />
                 <h2 className="text-xl font-bold text-gray-900">Aktivitas Terbaru</h2>
               </div>
-              <Link to="/student/attendance" className="text-teal-600 hover:text-teal-700 text-sm font-medium flex items-center gap-1">
+              <Link to="/student/attendance-list" className="text-teal-600 hover:text-teal-700 text-sm font-medium flex items-center gap-1">
                 Lihat Semua
                 <ChevronRight size={16} />
               </Link>

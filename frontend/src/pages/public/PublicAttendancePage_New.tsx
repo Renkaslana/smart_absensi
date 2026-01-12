@@ -18,6 +18,7 @@ import { toast } from 'react-hot-toast';
 import { Badge } from '../../components/ui/Feedback';
 import useMarkPublicAttendance from '../../hooks/usePublic';
 import settingsService from '../../services/settingsService';
+import { useRealLivenessDetection } from '../../hooks/useRealLivenessDetection';
 
 type AttendanceStep = 'idle' | 'liveness' | 'capturing' | 'recognizing' | 'success' | 'failed';
 
@@ -38,7 +39,6 @@ const PublicAttendancePage_New = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const videoRef = useRef<HTMLVideoElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
-    const [countdown, setCountdown] = useState(3);
     const mutation = useMarkPublicAttendance();
 
     // Fetch liveness settings
@@ -49,14 +49,18 @@ const PublicAttendancePage_New = () => {
 
     const livenessEnabled = livenessSettings?.enabled || false;
 
-    // For now, simplified liveness without complex hook
-    const [livenessProgress, setLivenessProgress] = useState<{
-        blink: boolean;
-        turnLeft: boolean;
-        turnRight: boolean;
-    }>({ blink: false, turnLeft: false, turnRight: false });
+    // ✅ REAL liveness detection (not simulation)
+    const liveness = useRealLivenessDetection(
+        videoRef,
+        livenessEnabled,
+        {
+            require_blink: livenessSettings?.require_blink ?? true,
+            require_head_turn: livenessSettings?.require_head_turn ?? true,
+            min_checks: livenessSettings?.min_checks ?? 2,
+            timeout: livenessSettings?.timeout ?? 30
+        }
+    );
 
-    const [passedCount, setPassedCount] = useState(0);
 
     // Update clock
     useEffect(() => {
@@ -195,24 +199,40 @@ const PublicAttendancePage_New = () => {
         toast.success('Posisikan wajah Anda dalam frame oval', { icon: '📸' });
     };
 
-    // Manual capture trigger - runs liveness check if enabled, then recognizes
+    // Manual capture trigger - runs REAL liveness check if enabled, then recognizes
     const handleCapture = async () => {
-        if (livenessEnabled) {
-            // Run liveness detection
-            setStep('liveness');
-            toast('Tunggu, melakukan liveness detection...', { icon: '👀' });
+        if (livenessEnabled && !liveness.modelsLoaded) {
+            toast.error('Model liveness detection belum siap. Silakan tunggu...');
+            return;
+        }
 
-            // Simulate liveness detection progress
-            setTimeout(() => setLivenessProgress(prev => ({ ...prev, blink: true })), 1000);
-            setTimeout(() => setLivenessProgress(prev => ({ ...prev, turnLeft: true })), 2000);
-            setTimeout(() => setLivenessProgress(prev => ({ ...prev, turnRight: true })), 3000);
-            setTimeout(() => {
-                setPassedCount(livenessSettings?.min_checks || 2);
-                // After liveness passed, proceed to recognize
-                toast.success('✅ Liveness berhasil! Mengenali wajah...');
-                setStep('recognizing');
-                handleRecognize();
-            }, 3500);
+        if (livenessEnabled) {
+            // Run REAL liveness detection
+            setStep('liveness');
+            toast('Ikuti instruksi liveness detection...', { icon: '👀' });
+
+            liveness.startDetection();
+
+            // Wait for liveness to complete (with timeout)
+            const timeout = setTimeout(() => {
+                liveness.stopDetection();
+                if (liveness.progress.passedCount < (livenessSettings?.min_checks || 2)) {
+                    toast.error('Liveness detection gagal. Silakan coba lagi.');
+                    handleReset();
+                }
+            }, (livenessSettings?.timeout || 30) * 1000);
+
+            // Poll for completion
+            const checkInterval = setInterval(() => {
+                if (liveness.progress.passedCount >= (livenessSettings?.min_checks || 2)) {
+                    clearInterval(checkInterval);
+                    clearTimeout(timeout);
+                    liveness.stopDetection();
+                    toast.success('✅ Liveness berhasil! Mengenali wajah...');
+                    setStep('recognizing');
+                    handleRecognize();
+                }
+            }, 500);
         } else {
             // No liveness, directly recognize
             setStep('recognizing');
@@ -307,8 +327,7 @@ const PublicAttendancePage_New = () => {
     const handleReset = () => {
         setStep('idle');
         setResult(null);
-        setLivenessProgress({ blink: false, turnLeft: false, turnRight: false });
-        setPassedCount(0);
+        liveness.resetDetection();
         stopCamera();
     };
 
@@ -457,49 +476,49 @@ const PublicAttendancePage_New = () => {
                                             <div className="absolute top-4 left-4 right-4">
                                                 <div className="bg-black/60 backdrop-blur-md rounded-xl p-4">
                                                     <div className="flex items-center justify-between mb-3">
-                                                        <span className="text-white font-semibold">Liveness Detection</span>
-                                                        <Badge variant="info">{passedCount} / {livenessSettings?.min_checks || 2}</Badge>
+                                                        <span className="text-white font-semibold">🔍 Real Liveness Detection</span>
+                                                        <Badge variant="info">{liveness.progress.passedCount} / {livenessSettings?.min_checks || 2}</Badge>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-2">
                                                         {livenessSettings?.require_blink && (
                                                             <div
-                                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg ${livenessProgress.blink
+                                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg ${liveness.progress.blink
                                                                     ? 'bg-emerald-500/20 border border-emerald-400'
                                                                     : 'bg-white/10 border border-white/20'
                                                                     }`}
                                                             >
                                                                 <div
-                                                                    className={`w-3 h-3 rounded-full ${livenessProgress.blink ? 'bg-emerald-400' : 'bg-gray-400'
+                                                                    className={`w-3 h-3 rounded-full ${liveness.progress.blink ? 'bg-emerald-400' : 'bg-gray-400'
                                                                         }`}
                                                                 />
-                                                                <span className="text-white text-sm">Berkedip</span>
+                                                                <span className="text-white text-sm">👁️ Berkedip</span>
                                                             </div>
                                                         )}
                                                         {livenessSettings?.require_head_turn && (
                                                             <>
                                                                 <div
-                                                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${livenessProgress.turnLeft
+                                                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${liveness.progress.turnLeft
                                                                         ? 'bg-emerald-500/20 border border-emerald-400'
                                                                         : 'bg-white/10 border border-white/20'
                                                                         }`}
                                                                 >
                                                                     <div
-                                                                        className={`w-3 h-3 rounded-full ${livenessProgress.turnLeft ? 'bg-emerald-400' : 'bg-gray-400'
+                                                                        className={`w-3 h-3 rounded-full ${liveness.progress.turnLeft ? 'bg-emerald-400' : 'bg-gray-400'
                                                                             }`}
                                                                     />
-                                                                    <span className="text-white text-sm">Kepala Kiri</span>
+                                                                    <span className="text-white text-sm">⬅️ Kiri</span>
                                                                 </div>
                                                                 <div
-                                                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${livenessProgress.turnRight
+                                                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${liveness.progress.turnRight
                                                                         ? 'bg-emerald-500/20 border border-emerald-400'
                                                                         : 'bg-white/10 border border-white/20'
                                                                         }`}
                                                                 >
                                                                     <div
-                                                                        className={`w-3 h-3 rounded-full ${livenessProgress.turnRight ? 'bg-emerald-400' : 'bg-gray-400'
+                                                                        className={`w-3 h-3 rounded-full ${liveness.progress.turnRight ? 'bg-emerald-400' : 'bg-gray-400'
                                                                             }`}
                                                                     />
-                                                                    <span className="text-white text-sm">Kepala Kanan</span>
+                                                                    <span className="text-white text-sm">➡️ Kanan</span>
                                                                 </div>
                                                             </>
                                                         )}

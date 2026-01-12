@@ -142,8 +142,23 @@ def get_attendance_history(
     # Calculate total pages
     total_pages = (total + page_size - 1) // page_size  # Ceiling division
     
+    # Convert Absensi objects to AttendanceRecord dicts explicitly
+    data = [
+        {
+            "id": r.id,
+            "date": r.date,
+            "timestamp": r.timestamp,
+            "status": r.status,
+            "confidence": r.confidence,
+            "image_path": r.image_path,
+            "device_info": r.device_info,
+            "ip_address": r.ip_address
+        }
+        for r in records
+    ]
+    
     return {
-        "data": records,
+        "data": data,
         "total": total,
         "page": page,
         "page_size": page_size,

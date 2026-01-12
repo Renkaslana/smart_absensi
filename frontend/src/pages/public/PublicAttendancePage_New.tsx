@@ -280,19 +280,9 @@ const PublicAttendancePage_New = () => {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
             return () => clearTimeout(timer);
         } else {
-            // Countdown reached 0, capture immediately
+            // Countdown reached 0, call handleCapture to trigger liveness or recognition
             setCountdown(null);
-            const captureNow = async () => {
-                const imageData = captureImage();
-                if (!imageData) {
-                    toast.error('Gagal mengambil gambar');
-                    return;
-                }
-
-                setStep('recognizing');
-                await handleRecognize();
-            };
-            captureNow();
+            handleCapture(); // This will handle liveness detection if enabled
         }
     }, [countdown]);
 

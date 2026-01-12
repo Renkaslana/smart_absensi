@@ -19,7 +19,6 @@ from app.schemas.settings import (
     LivenessDetectionSettingsUpdate
 )
 from app.api.deps import get_current_user, get_current_admin
-from app.utils.audit_logger import log_action
 
 router = APIRouter()
 
@@ -140,14 +139,6 @@ async def update_attendance_time_settings(
     db.commit()
     db.refresh(setting)
     
-    # Log action
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action="update_attendance_time_settings",
-        details=f"Updated attendance time settings: {update_data.dict(exclude_none=True)}"
-    )
-    
     return AttendanceTimeSettings(**json.loads(setting.value))
 
 
@@ -233,14 +224,6 @@ async def update_liveness_detection_settings(
     db.commit()
     db.refresh(setting)
     
-    # Log action
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action="update_liveness_detection_settings",
-        details=f"Updated liveness detection settings: {update_data.dict(exclude_none=True)}"
-    )
-    
     return LivenessDetectionSettings(**json.loads(setting.value))
 
 
@@ -265,13 +248,6 @@ async def create_setting(
     db.add(setting)
     db.commit()
     db.refresh(setting)
-    
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action="create_setting",
-        details=f"Created setting: {setting.key}"
-    )
     
     return setting
 
@@ -307,13 +283,6 @@ async def update_setting(
     db.commit()
     db.refresh(setting)
     
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action="update_setting",
-        details=f"Updated setting: {setting.key}"
-    )
-    
     return setting
 
 
@@ -342,10 +311,3 @@ async def delete_setting(
     setting_key = setting.key
     db.delete(setting)
     db.commit()
-    
-    log_action(
-        db=db,
-        user_id=current_user.id,
-        action="delete_setting",
-        details=f"Deleted setting: {setting_key}"
-    )

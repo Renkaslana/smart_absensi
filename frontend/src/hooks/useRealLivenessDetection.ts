@@ -128,7 +128,7 @@ export const useRealLivenessDetection = (
 
                 const landmarks = detections.landmarks;
 
-                // Blink detection
+                // Blink detection (adjusted thresholds for Asian eyes)
                 if (settings.require_blink && !progress.blink) {
                     const ear = calculateEAR(landmarks);
                     earHistoryRef.current.push(ear);
@@ -138,12 +138,15 @@ export const useRealLivenessDetection = (
                         earHistoryRef.current.shift();
                     }
 
-                    // Detect blink: EAR drops below 0.20 then recovers above 0.25
+                    // Detect blink with LOWER thresholds for Asian eyes:
+                    // - Closed eye: EAR < 0.18 (was 0.20)
+                    // - Open eye: EAR > 0.22 (was 0.25)
+                    // This accommodates smaller eye openings common in Asian faces
                     const avgEAR = earHistoryRef.current.reduce((a, b) => a + b, 0) / earHistoryRef.current.length;
                     if (earHistoryRef.current.length >= 5) {
-                        const hasLowEAR = earHistoryRef.current.some(e => e < 0.20);
-                        const hasHighEAR = earHistoryRef.current.some(e => e > 0.25);
-                        if (hasLowEAR && hasHighEAR) {
+                        const hasClosedEye = earHistoryRef.current.some(e => e < 0.18);
+                        const hasOpenEye = earHistoryRef.current.some(e => e > 0.22);
+                        if (hasClosedEye && hasOpenEye) {
                             console.log('👁️ Blink detected! EAR:', avgEAR.toFixed(3));
                             setProgress(prev => ({
                                 ...prev,

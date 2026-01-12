@@ -73,18 +73,20 @@ const PublicAttendancePage_New = () => {
 
   const startCamera = async () => {
     try {
+      // ✅ FIX BUG #1: Don't force exact resolution, let browser choose best
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'user' },
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
       });
       setStream(mediaStream);
       
-      // Wait for video to be ready before attaching
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      // ✅ FIX BUG #2: Only attach stream, let onLoadedMetadata handle play
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Ensure video plays
-        await videoRef.current.play();
+        // Don't call play() here!
       }
       return true;
     } catch (error) {
@@ -365,15 +367,16 @@ const PublicAttendancePage_New = () => {
               >
                 {/* Video Feed */}
                 <div className="relative mb-6">
-                  <div className="aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-inner relative">
+                  {/* ✅ FIX BUG #3: Remove bg-gray-900, let video show through */}
+                  <div className="aspect-video rounded-2xl overflow-hidden shadow-inner relative bg-black">
                     <video
                       ref={videoRef}
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover absolute inset-0"
+                      className="w-full h-full object-cover"
                       onLoadedMetadata={() => {
-                        // Ensure video plays when loaded
+                        // ✅ Play only once, when metadata loaded
                         videoRef.current?.play().catch(err => console.error('Video play error:', err));
                       }}
                     />
@@ -457,7 +460,7 @@ const PublicAttendancePage_New = () => {
 
                     {/* Recognizing Overlay */}
                     {step === 'recognizing' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
                         <div className="text-center">
                           <Loader className="w-16 h-16 text-white animate-spin mx-auto mb-4" />
                           <p className="text-white text-xl font-semibold">Mengenali wajah...</p>

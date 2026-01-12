@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import useMarkAttendance from '../../hooks/useStudent';
+import { useMarkAttendance } from '../../hooks/useStudent';
 
 const AbsensiPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -54,13 +54,27 @@ const AbsensiPage: React.FC = () => {
       const resp = await mutation.mutateAsync({ kelas_id: 0, method: 'face_recognition', image: dataUrl });
 
       if (resp && resp.success) {
-        // Play success audio
-        try {
-          const audio = new Audio('/voice/AbsensiBerhasil.mp3');
-          audio.play().catch(() => {});
-        } catch {}
-
-        toast.success(resp.message || 'Absensi berhasil');
+        // Check if already submitted today
+        if (resp.already_submitted || resp.data?.already_submitted) {
+          // Already submitted - show warning toast with info
+          toast(resp.message || 'Anda sudah melakukan absensi hari ini', {
+            icon: 'ℹ️',
+            duration: 5000,
+            style: {
+              background: '#FEF3C7',
+              color: '#92400E',
+              border: '1px solid #FCD34D',
+            },
+          });
+        } else {
+          // New attendance - show success toast and play audio
+          try {
+            const audio = new Audio('/voice/AbsensiBerhasil.mp3');
+            audio.play().catch(() => {});
+          } catch {}
+          
+          toast.success(resp.message || 'Absensi berhasil dicatat');
+        }
       } else {
         toast.error(resp?.message || 'Absensi gagal');
       }

@@ -6,6 +6,7 @@ from app.models.absensi import Absensi
 from app.models.refresh_token import RefreshToken
 from app.models.audit_log import AuditLog
 from app.models.kelas import Kelas
+from app.models.settings import Settings
 
 __all__ = [
     "User",
@@ -13,5 +14,6 @@ __all__ = [
     "Absensi",
     "RefreshToken",
     "AuditLog",
-    "Kelas"
+    "Kelas",
+    "Settings"
 ]

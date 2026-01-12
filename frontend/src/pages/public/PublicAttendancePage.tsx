@@ -135,25 +135,38 @@ const PublicAttendancePage: React.FC = () => {
         setResult(successResult);
         setStatus('success');
 
-        // Play success audio (public/voice/AbsensiBerhasil.mp3)
+        // Determine message and audio based on already_submitted flag
+        const isAlreadySubmitted = resp.already_submitted === true;
+        const welcomeMessage = isAlreadySubmitted 
+          ? `${successResult.name}, Anda sudah melakukan absensi hari ini` 
+          : `Absensi berhasil. Selamat datang ${successResult.name}`;
+
+        // Play audio or speech
         try {
-          const audio = new Audio('/voice/AbsensiBerhasil.mp3');
-          audio.play().catch(() => {
-            // Fallback to speech synthesis if audio autoplay blocked
+          // Only play success audio for new attendance
+          if (!isAlreadySubmitted) {
+            const audio = new Audio('/voice/AbsensiBerhasil.mp3');
+            audio.play().catch(() => {
+              // Fallback to speech synthesis
+              if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(welcomeMessage);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.95;
+                window.speechSynthesis.speak(utterance);
+              }
+            });
+          } else {
+            // For duplicate attendance, use speech synthesis with info message
             if ('speechSynthesis' in window) {
-              const utterance = new SpeechSynthesisUtterance(
-                `Absensi berhasil. Selamat datang ${successResult.name}`
-              );
+              const utterance = new SpeechSynthesisUtterance(welcomeMessage);
               utterance.lang = 'id-ID';
               utterance.rate = 0.95;
               window.speechSynthesis.speak(utterance);
             }
-          });
+          }
         } catch (e) {
           if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(
-              `Absensi berhasil. Selamat datang ${successResult.name}`
-            );
+            const utterance = new SpeechSynthesisUtterance(welcomeMessage);
             utterance.lang = 'id-ID';
             utterance.rate = 0.95;
             window.speechSynthesis.speak(utterance);

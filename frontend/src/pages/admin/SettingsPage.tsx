@@ -17,7 +17,7 @@ import { ShellHeader } from '../../components/layouts/Shell';
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { settingsService } from '../../services/settingsService';
-import type { AttendanceTimeSettings } from '../../services/settingsService';
+import type { AttendanceTimeSettings, LivenessDetectionSettings } from '../../services/settingsService';
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
@@ -42,10 +42,25 @@ const SettingsPage = () => {
     late_label: '❌ Terlambat! Tingkatkan disiplin!',
   });
 
+  // Liveness Detection Settings
+  const [livenessSettings, setLivenessSettings] = useState<LivenessDetectionSettings>({
+    enabled: false,
+    require_blink: true,
+    require_head_turn: true,
+    min_checks: 2,
+    timeout: 30,
+  });
+
   // Fetch attendance settings from API
   const { data: apiSettings } = useQuery({
     queryKey: ['attendanceTimeSettings'],
     queryFn: settingsService.getAttendanceTimeSettings,
+  });
+
+  // Fetch liveness detection settings
+  const { data: apiLivenessSettings } = useQuery({
+    queryKey: ['livenessDetectionSettings'],
+    queryFn: settingsService.getLivenessDetectionSettings,
   });
 
   // Update local state when API data loads
@@ -54,6 +69,12 @@ const SettingsPage = () => {
       setAttendanceSettings(apiSettings);
     }
   }, [apiSettings]);
+
+  useEffect(() => {
+    if (apiLivenessSettings) {
+      setLivenessSettings(apiLivenessSettings);
+    }
+  }, [apiLivenessSettings]);
 
   // Mutation for updating attendance settings
   const updateAttendanceMutation = useMutation({
@@ -68,13 +89,31 @@ const SettingsPage = () => {
     },
   });
 
+  // Mutation for updating liveness detection settings
+  const updateLivenessMutation = useMutation({
+    mutationFn: settingsService.updateLivenessDetectionSettings,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['livenessDetectionSettings'] });
+      toast.success('✅ Pengaturan liveness detection berhasil diperbarui!');
+      setLivenessSettings(data);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Gagal memperbarui pengaturan');
+    },
+  });
+
   const handleSaveAttendance = () => {
     updateAttendanceMutation.mutate(attendanceSettings);
+  };
+
+  const handleSaveLiveness = () => {
+    updateLivenessMutation.mutate(livenessSettings);
   };
 
   const handleSave = () => {
     // Save face recognition & system settings (not implemented yet)
     handleSaveAttendance();
+    handleSaveLiveness();
     toast.success('Pengaturan berhasil disimpan!');
   };
 
@@ -91,6 +130,11 @@ const SettingsPage = () => {
     // Reset attendance settings to API values
     if (apiSettings) {
       setAttendanceSettings(apiSettings);
+    }
+    
+    // Reset liveness settings to API values
+    if (apiLivenessSettings) {
+      setLivenessSettings(apiLivenessSettings);
     }
     
     toast.success('Pengaturan direset ke default');
@@ -472,6 +516,170 @@ const SettingsPage = () => {
                 className="w-full"
               >
                 {updateAttendanceMutation.isPending ? 'Menyimpan...' : 'Simpan Pengaturan Waktu'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Liveness Detection Settings */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-sm">
+              <Eye size={20} className="text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+                Liveness Detection (Absensi Publik)
+              </h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Konfigurasi deteksi kehidupan untuk keamanan absensi publik
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Enable Toggle */}
+            <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+              <div>
+                <p className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                  Aktifkan Liveness Detection
+                </p>
+                <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
+                  Wajibkan deteksi mata berkedip dan gerakan kepala untuk absensi publik
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livenessSettings.enabled}
+                  onChange={(e) =>
+                    setLivenessSettings({ ...livenessSettings, enabled: e.target.checked })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+
+            {/* Detection Options */}
+            {livenessSettings.enabled && (
+              <div className="space-y-3 pl-4 border-l-2 border-purple-300 dark:border-purple-700">
+                {/* Require Blink */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                      Deteksi Berkedip
+                    </p>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Wajibkan mata berkedip minimal 1 kali
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={livenessSettings.require_blink}
+                      onChange={(e) =>
+                        setLivenessSettings({
+                          ...livenessSettings,
+                          require_blink: e.target.checked,
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+
+                {/* Require Head Turn */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                      Deteksi Gerakan Kepala
+                    </p>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Wajibkan gerakan kepala kiri/kanan
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={livenessSettings.require_head_turn}
+                      onChange={(e) =>
+                        setLivenessSettings({
+                          ...livenessSettings,
+                          require_head_turn: e.target.checked,
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-neutral-300 dark:bg-neutral-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+
+                {/* Min Checks */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-2">
+                    Minimal Pemeriksaan (1-4)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="4"
+                    value={livenessSettings.min_checks}
+                    onChange={(e) =>
+                      setLivenessSettings({
+                        ...livenessSettings,
+                        min_checks: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className="w-full px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                  />
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                    Jumlah kondisi yang harus terpenuhi (contoh: 2 = berkedip + gerak kepala)
+                  </p>
+                </div>
+
+                {/* Timeout */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-2">
+                    Timeout (10-60 detik)
+                  </label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="60"
+                    value={livenessSettings.timeout}
+                    onChange={(e) =>
+                      setLivenessSettings({
+                        ...livenessSettings,
+                        timeout: parseInt(e.target.value) || 30,
+                      })
+                    }
+                    className="w-full px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                  />
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                    Batas waktu maksimal untuk menyelesaikan liveness detection
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Save Button */}
+            <div className="pt-4 border-t border-neutral-200 dark:border-neutral-700">
+              <Button
+                variant="primary"
+                size="md"
+                icon={<Save size={18} />}
+                onClick={handleSaveLiveness}
+                disabled={updateLivenessMutation.isPending}
+                className="w-full"
+              >
+                {updateLivenessMutation.isPending
+                  ? 'Menyimpan...'
+                  : 'Simpan Pengaturan Liveness Detection'}
               </Button>
             </div>
           </div>

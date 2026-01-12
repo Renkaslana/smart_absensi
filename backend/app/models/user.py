@@ -30,5 +30,10 @@ class User(Base):
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")
     
+    @property
+    def username(self) -> str:
+        """Alias for nim/nip for API compatibility."""
+        return self.nim
+    
     def __repr__(self):
         return f"<User(id={self.id}, nim={self.nim}, name={self.name})>"

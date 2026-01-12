@@ -22,6 +22,7 @@ import RegisterFacePage from './pages/student/RegisterFacePage';
 import HistoryPage from './pages/student/HistoryPage';
 import ProfilePage from './pages/student/ProfilePage';
 import SchedulePage from './pages/student/SchedulePage';
+import AttendanceListPage from './pages/student/AttendanceListPage';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
@@ -110,6 +111,10 @@ export const router = createBrowserRouter([
       {
         path: 'attendance',
         element: <HistoryPage />,
+      },
+      {
+        path: 'attendance-list',
+        element: <AttendanceListPage />,
       },
       {
         path: 'face',

@@ -116,14 +116,14 @@ def get_attendance_history(
     if date_start:
         try:
             start_date = datetime.strptime(date_start, "%Y-%m-%d").date()
-            query = query.filter(Absensi.tanggal >= start_date)
+            query = query.filter(Absensi.date >= start_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date_start format. Use YYYY-MM-DD")
     
     if date_end:
         try:
             end_date = datetime.strptime(date_end, "%Y-%m-%d").date()
-            query = query.filter(Absensi.tanggal <= end_date)
+            query = query.filter(Absensi.date <= end_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date_end format. Use YYYY-MM-DD")
     
@@ -137,7 +137,7 @@ def get_attendance_history(
     
     # Apply pagination
     skip = (page - 1) * page_size
-    records = query.order_by(Absensi.tanggal.desc(), Absensi.waktu.desc()).offset(skip).limit(page_size).all()
+    records = query.order_by(Absensi.date.desc(), Absensi.timestamp.desc()).offset(skip).limit(page_size).all()
     
     # Calculate total pages
     total_pages = (total + page_size - 1) // page_size  # Ceiling division
@@ -171,16 +171,16 @@ def export_attendance_history(
     # Apply same filters as history endpoint
     if date_start:
         start_date = datetime.strptime(date_start, "%Y-%m-%d").date()
-        query = query.filter(Absensi.tanggal >= start_date)
+        query = query.filter(Absensi.date >= start_date)
     
     if date_end:
         end_date = datetime.strptime(date_end, "%Y-%m-%d").date()
-        query = query.filter(Absensi.tanggal <= end_date)
+        query = query.filter(Absensi.date <= end_date)
     
     if status:
         query = query.filter(Absensi.status == status)
     
-    records = query.order_by(Absensi.tanggal.desc()).all()
+    records = query.order_by(Absensi.date.desc()).all()
     
     # Create CSV
     output = StringIO()
@@ -192,14 +192,14 @@ def export_attendance_history(
     # Rows
     for record in records:
         writer.writerow([
-            record.tanggal.strftime("%Y-%m-%d") if record.tanggal else "",
-            record.waktu.strftime("%H:%M:%S") if record.waktu else "",
-            record.kelas.nama if record.kelas else "",  # TODO: Add mata_pelajaran field
-            "",  # TODO: Add guru from kelas relationship
+            record.date.strftime("%Y-%m-%d") if record.date else "",
+            record.timestamp.strftime("%H:%M:%S") if record.timestamp else "",
+            "",  # Mata Pelajaran - not in current model
+            "",  # Guru - not in current model  
             record.status,
-            record.method or "manual",
-            f"{record.confidence:.1f}%" if record.confidence else "",
-            record.keterangan or ""
+            "face_recognition" if record.confidence else "manual",
+            f"{record.confidence:.1%}" if record.confidence else "",
+            ""  # Keterangan - not in current model
         ])
     
     # Return as downloadable CSV
@@ -412,12 +412,11 @@ async def mark_attendance(
     """
     attendance_service = AttendanceService(db)
     
-    # Check if already marked today for this class
+    # Check if already marked today
     today = date.today()
     existing = db.query(Absensi).filter(
         Absensi.user_id == current_user.id,
-        Absensi.kelas_id == kelas_id,
-        Absensi.tanggal == today
+        Absensi.date == today
     ).first()
     
     if existing:

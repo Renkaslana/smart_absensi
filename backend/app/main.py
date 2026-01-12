@@ -14,7 +14,7 @@ from app.db.base import Base
 
 # Import routes
 from app.api.v1 import auth, face, absensi, admin, public, kelas
-from app.api.v1.endpoints import students, teachers, public_attendance
+from app.api.v1.endpoints import students, teachers, public_attendance, settings as settings_router
 
 
 @asynccontextmanager
@@ -111,10 +111,17 @@ app = FastAPI(
 )
 
 # CORS Middleware - Must be added BEFORE any routes
-# Using wildcard for development to ensure all requests are allowed
+# Allow specific origins for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3001", 
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3001",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
@@ -195,6 +202,12 @@ app.include_router(
     public_attendance.router,
     prefix=f"{settings.API_V1_PREFIX}/public",
     tags=["Public Attendance"]
+)
+
+app.include_router(
+    settings_router.router,
+    prefix=f"{settings.API_V1_PREFIX}/settings",
+    tags=["Settings"]
 )
 
 

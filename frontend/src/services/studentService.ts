@@ -207,6 +207,11 @@ export const markAttendance = async (data: {
   message: string;
   confidence?: number;
   attendance_id: number;
+  already_submitted?: boolean;  // Flag untuk duplikasi
+  data?: {
+    already_submitted?: boolean;
+    timestamp?: string;
+  };
 }> => {
   const response = await api.post('/students/attendance/mark', data);
   return response.data;

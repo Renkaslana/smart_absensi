@@ -4,6 +4,7 @@ Handles face detection, encoding, and recognition using face_recognition library
 """
 
 import os
+import io
 import pickle
 import numpy as np
 import face_recognition
@@ -263,6 +264,89 @@ class FaceRecognitionService:
         if os.path.exists(user_dir):
             import shutil
             shutil.rmtree(user_dir)
+    
+    def register_face(self, user_id: int, image_data: bytes, filename: str) -> Dict:
+        """
+        Register a face photo for a user.
+        Process image, validate quality, extract encoding, and save.
+        
+        Args:
+            user_id: User database ID
+            image_data: Raw image bytes
+            filename: Original filename
+            
+        Returns:
+            Dict with encoding_id, image_path, quality_score
+            
+        Raises:
+            ValueError: If image processing fails or no face detected
+        """
+        from app.db.session import SessionLocal
+        from app.models.user import User
+        from app.models.face_encoding import FaceEncoding
+        
+        # Decode image from bytes
+        try:
+            image = Image.open(io.BytesIO(image_data))
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        except Exception as e:
+            raise ValueError(f"Invalid image format: {str(e)}")
+        
+        # Validate image quality
+        is_valid, error_msg = validate_image_quality(image)
+        if not is_valid:
+            raise ValueError(error_msg)
+        
+        # Encode face
+        encoding = self.encode_face(image)
+        if encoding is None:
+            raise ValueError("No face detected in image. Please ensure your face is clearly visible.")
+        
+        # Get user info for saving image
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise ValueError("User not found")
+            
+            # Save face image
+            image_path = self.save_face_image(
+                image=image,
+                user_nim=user.nim,
+                index=int(datetime.now().timestamp())
+            )
+            
+            # Calculate quality score (simple metric based on image size and detection)
+            quality_score = min(100, int((image.width * image.height) / 10000))
+            
+            # Save encoding to database
+            face_encoding = FaceEncoding(
+                user_id=user_id,
+                encoding_data=self.serialize_encoding(encoding),
+                image_path=image_path,
+                confidence=quality_score / 100.0,  # Use confidence field for quality (0.0-1.0)
+                created_at=datetime.now()
+            )
+            
+            db.add(face_encoding)
+            db.commit()
+            db.refresh(face_encoding)
+            
+            # Update user has_face flag
+            count = db.query(FaceEncoding).filter(FaceEncoding.user_id == user_id).count()
+            if count >= 3:
+                user.has_face = True
+                db.commit()
+            
+            return {
+                "encoding_id": face_encoding.id,
+                "image_path": image_path,
+                "quality_score": quality_score
+            }
+            
+        finally:
+            db.close()
 
 
 # Global service instance

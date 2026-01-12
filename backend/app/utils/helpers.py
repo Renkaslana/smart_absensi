@@ -39,13 +39,43 @@ def get_today_date() -> date:
     return date.today()
 
 
-def get_current_time_status() -> str:
+def get_attendance_time_config(db):
     """
-    Determine attendance status based on current time.
-    Returns 'hadir' if before 08:00, 'terlambat' if after.
+    Get attendance time configuration from database settings.
+    Returns default values if not found.
     """
+    from app.models.settings import Settings
+    import json
+    
+    setting = db.query(Settings).filter(Settings.key == "attendance_time_config").first()
+    
+    if setting:
+        try:
+            config = json.loads(setting.value)
+            return config
+        except (json.JSONDecodeError, ValueError):
+            pass
+    
+    # Default configuration
+    return {
+        "early_time": "07:00",
+        "late_threshold": "08:00",
+        "early_label": "🌟 Siswa rajin dan baik!",
+        "ontime_label": "⚠️ Hampir telat, hati-hati!",
+        "late_label": "❌ Terlambat! Tingkatkan disiplin!"
+    }
+
+
+def get_current_time_status(db) -> str:
+    """
+    Determine attendance status based on current time and database settings.
+    Returns 'hadir' if before late_threshold, 'terlambat' if after.
+    """
+    config = get_attendance_time_config(db)
+    
     now = datetime.now()
-    cutoff_time = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    late_hour, late_minute = map(int, config["late_threshold"].split(":"))
+    cutoff_time = now.replace(hour=late_hour, minute=late_minute, second=0, microsecond=0)
     
     if now <= cutoff_time:
         return "hadir"

@@ -137,9 +137,11 @@ async def mark_public_attendance(
         ).first()
         
         if existing:
+            waktu_absen = existing.timestamp.strftime("%H:%M:%S") if existing.timestamp else ""
             return {
-                "success": False,
-                "message": "Attendance already marked today",
+                "success": True,  # Changed to True for better UX
+                "already_submitted": True,  # Flag untuk duplikasi
+                "message": f"{user.name}, Anda sudah melakukan absensi hari ini pada pukul {waktu_absen}",
                 "student": {
                     "id": user.id,
                     "name": user.name,
@@ -149,7 +151,7 @@ async def mark_public_attendance(
                 "attendance": {
                     "id": existing.id,
                     "tanggal": str(existing.date),
-                    "waktu": existing.timestamp.strftime("%H:%M:%S") if existing.timestamp else "",
+                    "waktu": waktu_absen,
                     "status": existing.status,
                     "method": "face_recognition",
                     "confidence": existing.confidence
@@ -173,9 +175,11 @@ async def mark_public_attendance(
         db.commit()
         db.refresh(new_attendance)
         
+        waktu_absen = new_attendance.timestamp.strftime("%H:%M:%S") if new_attendance.timestamp else ""
         return {
             "success": True,
-            "message": f"Attendance marked successfully. Welcome, {user.name}!",
+            "already_submitted": False,  # Flag untuk absensi baru
+            "message": f"Selamat datang, {user.name}! Absensi berhasil dicatat pada pukul {waktu_absen}",
             "student": {
                 "id": user.id,
                 "name": user.name,
@@ -185,7 +189,7 @@ async def mark_public_attendance(
             "attendance": {
                 "id": new_attendance.id,
                 "tanggal": str(new_attendance.date),
-                "waktu": new_attendance.timestamp.strftime("%H:%M:%S") if new_attendance.timestamp else "",
+                "waktu": waktu_absen,
                 "status": new_attendance.status,
                 "method": "face_recognition",
                 "confidence": new_attendance.confidence

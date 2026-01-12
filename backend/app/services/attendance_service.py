@@ -54,8 +54,8 @@ class AttendanceService:
             # Will be handled by API layer to return appropriate response
             return existing, True  # (attendance, is_duplicate)
         
-        # Determine status based on time
-        status = get_current_time_status()
+        # Determine status based on time and database settings
+        status = get_current_time_status(self.db)
         
         # Create attendance record
         attendance = Absensi(

@@ -74,13 +74,9 @@ class AttendanceRecord(BaseModel):
     device_info: Optional[str] = None
     ip_address: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-        # Allow timezone-aware datetime to be serialized
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None,
-            date: lambda v: v.isoformat() if v else None
-        }
+    model_config = {
+        "from_attributes": True
+    }
 
 
 class AttendanceHistoryResponse(BaseModel):
@@ -90,3 +86,7 @@ class AttendanceHistoryResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+    
+    model_config = {
+        "from_attributes": True
+    }

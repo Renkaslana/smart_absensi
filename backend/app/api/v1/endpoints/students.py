@@ -142,9 +142,12 @@ def get_attendance_history(
     # Calculate total pages
     total_pages = (total + page_size - 1) // page_size  # Ceiling division
     
-    # Return response with proper type conversion handled by pydantic
+    # Convert ORM objects to Pydantic models explicitly
+    attendance_records = [AttendanceRecord.model_validate(record) for record in records]
+    
+    # Return response
     return AttendanceHistoryResponse(
-        data=records,
+        data=attendance_records,
         total=total,
         page=page,
         page_size=page_size,

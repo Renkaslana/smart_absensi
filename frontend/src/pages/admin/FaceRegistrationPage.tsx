@@ -33,6 +33,9 @@ const FaceRegistrationPage = () => {
     notDark: false,
     neutralPose: false,
   });
+  
+  // 🌙 Track if first photo passed liveness (unlock subsequent auto-captures)
+  const [livenessPassedOnce, setLivenessPassedOnce] = useState(false);
 
   const MIN_IMAGES = 3;
   const MAX_IMAGES = 5;
@@ -56,6 +59,37 @@ const FaceRegistrationPage = () => {
       stopCamera();
     };
   }, []);
+
+  // 🌙 Auto-stop camera when page hidden (minimize, switch tab/app)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && cameraReady) {
+        console.log('[FaceRegistration] Page hidden, stopping camera...');
+        window.speechSynthesis.cancel();
+        stopCamera();
+        setAutoCapture(false);
+        toast('Kamera dihentikan (halaman tidak aktif)');
+      }
+    };
+
+    const handleWindowBlur = () => {
+      if (cameraReady) {
+        console.log('[FaceRegistration] Window blur, stopping camera...');
+        window.speechSynthesis.cancel();
+        stopCamera();
+        setAutoCapture(false);
+        toast('Kamera dihentikan (berpindah aplikasi)');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [cameraReady]);
 
   // 🌙 Additional cleanup on beforeunload (browser close/refresh)
   useEffect(() => {
@@ -103,18 +137,19 @@ const FaceRegistrationPage = () => {
       if (passedCount >= 3) {
         setCountdown(3);
       }
-    } else {
-      // ✅ SUBSEQUENT PHOTOS: Lenient check (face + quality only)
+    } else if (livenessPassedOnce) {
+      // ✅ SUBSEQUENT PHOTOS: Auto-capture immediately (liveness already passed)
+      // Just check basic face detection and quality
       if (
         livenessResult.details.faceDetected &&
         !livenessResult.details.isBlurry &&
-        !livenessResult.details.isDark &&
-        livenessResult.progress >= 40
+        !livenessResult.details.isDark
       ) {
-        setCountdown(3);
+        // Shorter countdown (1 second) for subsequent photos
+        setCountdown(1);
       }
     }
-  }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown, conditionsMet]);
+  }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown, conditionsMet, livenessPassedOnce]);
 
   // 🌙 Countdown effect: 3 → 2 → 1 → 0 (capture) → null (reset)
   useEffect(() => {
@@ -138,6 +173,7 @@ const FaceRegistrationPage = () => {
       
       if (capturedImages.length === 0) {
         resetBlinkCount(); // Reset after first photo
+        setLivenessPassedOnce(true); // Unlock subsequent auto-captures
         setConditionsMet({ // Reset cumulative conditions for next session
           faceDetected: false,
           notBlurry: false,
@@ -452,6 +488,7 @@ const FaceRegistrationPage = () => {
                             notDark: false,
                             neutralPose: false,
                           });
+                          setLivenessPassedOnce(false);
                           toast.success('Auto capture diaktifkan! Foto akan diambil otomatis');
                         } else {
                           toast('Auto capture dinonaktifkan');
@@ -493,14 +530,15 @@ const FaceRegistrationPage = () => {
                       <li className="ml-3">2. Gambar tidak buram (tahan stabil)</li>
                       <li className="ml-3">3. Pencahayaan cukup (tidak gelap/terang)</li>
                       <li className="ml-3">4. Gerakan kepala (opsional)</li>
-                      <li>• <strong>Foto pertama:</strong> 3/4 kondisi → auto scan</li>
-                      <li>• <strong>Foto selanjutnya:</strong> Kualitas gambar saja</li>
+                      <li>• <strong>Foto pertama:</strong> 3/4 kondisi → liveness verified</li>
+                      <li>• <strong>Foto 2-5:</strong> Otomatis diambil (1 detik interval)</li>
+                      <li>• Kamera auto-stop saat minimize/switch app</li>
                       <li>• Minimal 3 foto, maksimal 5 foto</li>
                     </ul>
                     <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-accent-200 dark:border-accent-700">
                       <p className="text-[9px] sm:text-[10px] text-accent-600 dark:text-accent-400">
-                        <strong>Smart Detection:</strong> Gerakan kepala/mulut dibuat opsional untuk kenyamanan. 
-                        Sistem akan otomatis memulai scan ketika minimal 3 kondisi terpenuhi.
+                        <strong>Smart Auto-Capture:</strong> Liveness check hanya di foto pertama. 
+                        Foto 2-5 otomatis diambil cepat (1 detik). Kamera auto-stop saat tidak aktif.
                       </p>
                     </div>
                   </div>

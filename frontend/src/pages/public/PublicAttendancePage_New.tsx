@@ -241,8 +241,10 @@ const PublicAttendancePage_New = () => {
       }
     } catch (err: any) {
       console.error('Scan error:', err);
+      console.error('Response data:', err?.response?.data);
       setStep('failed');
-      toast.error(err?.message || 'Gagal melakukan scan');
+      const errorMessage = err?.response?.data?.detail || err?.message || 'Gagal melakukan scan';
+      toast.error(errorMessage);
       setTimeout(() => handleReset(), 3000);
     }
   };
@@ -363,13 +365,17 @@ const PublicAttendancePage_New = () => {
               >
                 {/* Video Feed */}
                 <div className="relative mb-6">
-                  <div className="aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-inner">
+                  <div className="aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-inner relative">
                     <video
                       ref={videoRef}
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover absolute inset-0"
+                      onLoadedMetadata={() => {
+                        // Ensure video plays when loaded
+                        videoRef.current?.play().catch(err => console.error('Video play error:', err));
+                      }}
                     />
 
                     {/* Liveness Overlay */}

@@ -77,12 +77,20 @@ database/**/*.sqlite
 dataset_wajah/
 database/wajah_siswa/
 backend/database/wajah_siswa/
+encodings/
+backend/uploads/
+uploads/
 
 # Trained model files (common extensions)
 *.pt
 *.pth
 *.h5
 *.ckpt
+*.pkl
+*.pickle
+
+# Face-api.js models (keep in git but ignore if too large)
+# public/models/
 
 # -----------------------------
 # Frontend (Node / Vite)
@@ -91,10 +99,12 @@ node_modules/
 dist/
 build/
 .vite/
- .next/
+.next/
+frontend/.next/
+frontend/dist/
+frontend/build/
 /.parcel-cache/
 /public/build/
-frontend/.next/
 
 # Logs
 logs/

@@ -138,16 +138,9 @@ const FaceRegistrationPage = () => {
         setCountdown(3);
       }
     } else if (livenessPassedOnce) {
-      // ✅ SUBSEQUENT PHOTOS: Auto-capture immediately (liveness already passed)
-      // Just check basic face detection and quality
-      if (
-        livenessResult.details.faceDetected &&
-        !livenessResult.details.isBlurry &&
-        !livenessResult.details.isDark
-      ) {
-        // Shorter countdown (1 second) for subsequent photos
-        setCountdown(1);
-      }
+      // ✅ SUBSEQUENT PHOTOS: Auto-capture immediately without checks
+      // Liveness already verified, just capture remaining photos quickly
+      setCountdown(1); // Start immediate countdown
     }
   }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown, conditionsMet, livenessPassedOnce]);
 
@@ -156,22 +149,23 @@ const FaceRegistrationPage = () => {
     if (countdown === null) return;
 
     if (countdown > 0) {
-      // Countdown animation (3, 2, 1)
+      // Countdown animation
+      const isFirstPhoto = capturedImages.length === 0;
+      const interval = isFirstPhoto ? 1000 : 500; // 1s for first, 0.5s for subsequent
+      
       const timer = setTimeout(() => {
-        speakFeedback(countdown.toString()); // Voice feedback
+        if (isFirstPhoto) {
+          speakFeedback(countdown.toString()); // Voice feedback only for first
+        }
         setCountdown(countdown - 1);
-      }, 1000);
+      }, interval);
       return () => clearTimeout(timer);
     } else if (countdown === 0) {
       // Countdown reached 0 → capture photo
       captureImage();
-      speakFeedback(
-        capturedImages.length === 0
-          ? `Foto pertama berhasil! Liveness verified. Ambil ${MAX_IMAGES - 1} foto lagi.`
-          : `Foto ${capturedImages.length + 1} berhasil diambil`
-      );
       
       if (capturedImages.length === 0) {
+        speakFeedback(`Foto pertama berhasil! Liveness verified. Mengambil ${MAX_IMAGES - 1} foto lagi otomatis...`);
         resetBlinkCount(); // Reset after first photo
         setLivenessPassedOnce(true); // Unlock subsequent auto-captures
         setConditionsMet({ // Reset cumulative conditions for next session
@@ -531,14 +525,14 @@ const FaceRegistrationPage = () => {
                       <li className="ml-3">3. Pencahayaan cukup (tidak gelap/terang)</li>
                       <li className="ml-3">4. Gerakan kepala (opsional)</li>
                       <li>• <strong>Foto pertama:</strong> 3/4 kondisi → liveness verified</li>
-                      <li>• <strong>Foto 2-5:</strong> Otomatis diambil (1 detik interval)</li>
+                      <li>• <strong>Foto 2-5:</strong> Otomatis diambil semua (0.5s interval)</li>
+                      <li>• <strong>Total waktu:</strong> ~5-10 detik untuk 5 foto</li>
                       <li>• Kamera auto-stop saat minimize/switch app</li>
-                      <li>• Minimal 3 foto, maksimal 5 foto</li>
                     </ul>
                     <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-accent-200 dark:border-accent-700">
                       <p className="text-[9px] sm:text-[10px] text-accent-600 dark:text-accent-400">
-                        <strong>Smart Auto-Capture:</strong> Liveness check hanya di foto pertama. 
-                        Foto 2-5 otomatis diambil cepat (1 detik). Kamera auto-stop saat tidak aktif.
+                        <strong>Ultra-Fast Auto-Capture:</strong> Liveness check hanya di foto pertama. 
+                        Foto 2-5 otomatis diambil cepat (0.5 detik/foto). Total ~5-10 detik!
                       </p>
                     </div>
                   </div>

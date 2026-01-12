@@ -138,11 +138,25 @@ const FaceRegistrationPage = () => {
         setCountdown(3);
       }
     } else if (livenessPassedOnce) {
-      // ✅ SUBSEQUENT PHOTOS: Auto-capture immediately without checks
-      // Liveness already verified, just capture remaining photos quickly
-      setCountdown(1); // Start immediate countdown
+      // ✅ SUBSEQUENT PHOTOS: Wait 2 seconds for pose change, then countdown
+      const nextPhotoIndex = capturedImages.length; // 1, 2, 3, 4
+      if (nextPhotoIndex < MAX_IMAGES) {
+        // Give 2 seconds for user to read pose instruction and adjust
+        setTimeout(() => {
+          setCountdown(3); // 3-second countdown for each photo
+        }, 2000);
+      }
     }
   }, [autoCapture, cameraReady, capturedImages.length, livenessResult, countdown, conditionsMet, livenessPassedOnce]);
+
+  // � Pose variations for each photo
+  const poseInstructions = [
+    "Hadap depan, pose netral", // Photo 1
+    "Senyum natural", // Photo 2
+    "Tengok sedikit ke kanan", // Photo 3
+    "Tengok sedikit ke kiri", // Photo 4
+    "Pose bebas tapi jelas" // Photo 5
+  ];
 
   // 🌙 Countdown effect: 3 → 2 → 1 → 0 (capture) → null (reset)
   useEffect(() => {
@@ -151,11 +165,11 @@ const FaceRegistrationPage = () => {
     if (countdown > 0) {
       // Countdown animation
       const isFirstPhoto = capturedImages.length === 0;
-      const interval = isFirstPhoto ? 1000 : 500; // 1s for first, 0.5s for subsequent
+      const interval = isFirstPhoto ? 1000 : 1000; // 1s for all photos
       
       const timer = setTimeout(() => {
         if (isFirstPhoto) {
-          speakFeedback(countdown.toString()); // Voice feedback only for first
+          speakFeedback(countdown.toString()); // Voice countdown only for first
         }
         setCountdown(countdown - 1);
       }, interval);
@@ -165,7 +179,7 @@ const FaceRegistrationPage = () => {
       captureImage();
       
       if (capturedImages.length === 0) {
-        speakFeedback(`Foto pertama berhasil! Liveness verified. Mengambil ${MAX_IMAGES - 1} foto lagi otomatis...`);
+        speakFeedback(`Foto pertama berhasil! Liveness verified. Mengambil ${MAX_IMAGES - 1} foto lagi dengan variasi pose...`);
         resetBlinkCount(); // Reset after first photo
         setLivenessPassedOnce(true); // Unlock subsequent auto-captures
         setConditionsMet({ // Reset cumulative conditions for next session
@@ -174,6 +188,12 @@ const FaceRegistrationPage = () => {
           notDark: false,
           neutralPose: false,
         });
+      } else {
+        // Announce next pose variation
+        const nextPhotoIndex = capturedImages.length; // Current length = next photo index
+        if (nextPhotoIndex < MAX_IMAGES) {
+          speakFeedback(poseInstructions[nextPhotoIndex]);
+        }
       }
       
       // Reset countdown after capture
@@ -435,6 +455,19 @@ const FaceRegistrationPage = () => {
                   </div>
                 )}
 
+                {/* 🎭 Pose Instruction Overlay - shown after first photo */}
+                {livenessPassedOnce && capturedImages.length < MAX_IMAGES && countdown === null && (
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-accent-600 text-white px-4 py-3 rounded-lg shadow-lg animate-bounce">
+                    <div className="flex items-center gap-2">
+                      <Camera size={20} />
+                      <div>
+                        <p className="text-sm font-semibold">Foto #{capturedImages.length + 1}</p>
+                        <p className="text-xs">{poseInstructions[capturedImages.length]}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Guide Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-64 h-80 border-2 border-accent-500 rounded-full opacity-30"></div>
@@ -516,23 +549,22 @@ const FaceRegistrationPage = () => {
                   <AlertCircle size={18} className="text-accent-600 dark:text-accent-400 flex-shrink-0 mt-0.5 sm:size-5" />
                   <div className="space-y-2">
                     <p className="text-xs sm:text-sm font-semibold text-accent-900 dark:text-accent-100">
-                      🌙 Anti-Spoofing Protection (3/4 Kondisi)
+                      🌙 Anti-Spoofing Protection + Variasi Pose
                     </p>
                     <ul className="text-[11px] sm:text-xs text-accent-700 dark:text-accent-300 space-y-1">
-                      <li>• <strong>Minimal 3 dari 4 kondisi harus hijau:</strong></li>
-                      <li className="ml-3">1. Wajah terdeteksi (frontal, tidak miring)</li>
-                      <li className="ml-3">2. Gambar tidak buram (tahan stabil)</li>
-                      <li className="ml-3">3. Pencahayaan cukup (tidak gelap/terang)</li>
-                      <li className="ml-3">4. Gerakan kepala (opsional)</li>
-                      <li>• <strong>Foto pertama:</strong> 3/4 kondisi → liveness verified</li>
-                      <li>• <strong>Foto 2-5:</strong> Otomatis diambil semua (0.5s interval)</li>
-                      <li>• <strong>Total waktu:</strong> ~5-10 detik untuk 5 foto</li>
-                      <li>• Kamera auto-stop saat minimize/switch app</li>
+                      <li>• <strong>Foto 1:</strong> Hadap depan → 3/4 kondisi hijau → countdown 3 detik</li>
+                      <li>• <strong>Foto 2:</strong> Senyum natural → countdown 3 detik</li>
+                      <li>• <strong>Foto 3:</strong> Tengok kanan → countdown 3 detik</li>
+                      <li>• <strong>Foto 4:</strong> Tengok kiri → countdown 3 detik</li>
+                      <li>• <strong>Foto 5:</strong> Pose bebas → countdown 3 detik</li>
+                      <li>• <strong>Jeda antar foto:</strong> 2 detik (untuk ganti pose)</li>
+                      <li>• <strong>Total waktu:</strong> ~20-25 detik untuk 5 foto</li>
+                      <li>• Instruksi pose muncul di layar (suara + teks)</li>
                     </ul>
                     <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-accent-200 dark:border-accent-700">
                       <p className="text-[9px] sm:text-[10px] text-accent-600 dark:text-accent-400">
-                        <strong>Ultra-Fast Auto-Capture:</strong> Liveness check hanya di foto pertama. 
-                        Foto 2-5 otomatis diambil cepat (0.5 detik/foto). Total ~5-10 detik!
+                        <strong>Smart Auto-Capture:</strong> Liveness check hanya di foto pertama. 
+                        Foto 2-5 dengan variasi pose untuk akurasi lebih tinggi. Kamera auto-stop saat minimize/switch.
                       </p>
                     </div>
                   </div>

@@ -329,16 +329,15 @@ const PublicAttendancePage_New = () => {
                                 <span className="hidden sm:inline">{formatTime(currentTime)}</span>
                                 <span className="sm:hidden">{formatTime(currentTime).slice(0, 5)}</span>
                             </div>
-                            </div>
-                            <div className="text-white/80 text-sm">{formatDate(currentTime)}</div>
+                            <div className="text-white/80 text-xs sm:text-sm">{formatDate(currentTime)}</div>
                         </div>
 
                         <Link
                             to="/"
-                            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm sm:text-base"
                         >
                             <Home className="w-4 h-4" />
-                            Beranda
+                            <span className="hidden sm:inline">Beranda</span>
                         </Link>
                     </div>
                 </div>

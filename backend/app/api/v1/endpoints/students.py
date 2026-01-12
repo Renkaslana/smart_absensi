@@ -142,28 +142,14 @@ def get_attendance_history(
     # Calculate total pages
     total_pages = (total + page_size - 1) // page_size  # Ceiling division
     
-    # Convert Absensi objects to AttendanceRecord dicts explicitly
-    # This ensures proper type conversion for date, datetime, and optional fields
-    data = []
-    for r in records:
-        data.append({
-            "id": r.id,
-            "date": r.date.isoformat() if r.date else None,
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-            "status": r.status or "hadir",
-            "confidence": float(r.confidence) if r.confidence is not None else None,
-            "image_path": r.image_path,
-            "device_info": r.device_info,
-            "ip_address": r.ip_address
-        })
-    
-    return {
-        "data": data,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": total_pages
-    }
+    # Return response with proper type conversion handled by pydantic
+    return AttendanceHistoryResponse(
+        data=records,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
 
 
 @router.get("/attendance/export")

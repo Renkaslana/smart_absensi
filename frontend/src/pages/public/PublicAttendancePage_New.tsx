@@ -267,32 +267,37 @@ const PublicAttendancePage_New = () => {
                 setResult(successResult);
                 setStep('success');
 
-                // Play audio/speech
+                // Play audio/speech with improved fallback
                 const message = successResult.isAlreadySubmitted
                     ? `${successResult.name}, Anda sudah melakukan absensi hari ini`
                     : `Absensi berhasil. Selamat datang ${successResult.name}`;
 
                 try {
-                    if (!successResult.isAlreadySubmitted) {
-                        const audio = new Audio('/voice/AbsensiBerhasil.mp3');
-                        audio.play().catch(() => {
-                            if ('speechSynthesis' in window) {
-                                const utterance = new SpeechSynthesisUtterance(message);
-                                utterance.lang = 'id-ID';
-                                utterance.rate = 0.95;
-                                window.speechSynthesis.speak(utterance);
-                            }
-                        });
-                    } else {
+                    // Always try to play audio first
+                    const audio = new Audio('/voice/AbsensiBerhasil.mp3');
+                    audio.volume = 0.8;
+                    
+                    audio.play().then(() => {
+                        console.log('🔊 Audio played successfully');
+                    }).catch((err) => {
+                        console.warn('⚠️ Audio playback failed, using speech synthesis:', err);
+                        // Fallback to speech synthesis
                         if ('speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance(message);
                             utterance.lang = 'id-ID';
                             utterance.rate = 0.95;
+                            utterance.volume = 1.0;
                             window.speechSynthesis.speak(utterance);
                         }
-                    }
+                    });
                 } catch (e) {
-                    console.error('Audio error:', e);
+                    console.error('❌ Audio error:', e);
+                    // Last resort: speech synthesis
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(message);
+                        utterance.lang = 'id-ID';
+                        window.speechSynthesis.speak(utterance);
+                    }
                 }
 
                 // Auto reset after 5s

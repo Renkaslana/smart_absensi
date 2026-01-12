@@ -48,19 +48,19 @@ def create_default_settings():
         liveness_existing = db.query(Settings).filter(Settings.key == "liveness_detection_config").first()
         
         if not liveness_existing:
-            # Create default liveness settings
+            # Create default liveness settings (blink disabled for Asian face compatibility)
             liveness_config = {
-                "enabled": False,
-                "require_blink": True,
-                "require_head_turn": True,
-                "min_checks": 2,
+                "enabled": True,  # Enabled by default
+                "require_blink": False,  # Disabled - not reliable for Asian eyes
+                "require_head_turn": True,  # Keep head turn - works perfectly
+                "min_checks": 2,  # Left + Right turn
                 "timeout": 30
             }
             
             liveness_setting = Settings(
                 key="liveness_detection_config",
                 value=json.dumps(liveness_config),
-                description="Liveness detection configuration for public attendance. Admin can enable/disable.",
+                description="Liveness detection configuration for public attendance. Blink disabled for Asian compatibility.",
                 category="security",
                 is_editable=True
             )

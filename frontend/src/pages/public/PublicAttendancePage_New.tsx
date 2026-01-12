@@ -74,23 +74,24 @@ const PublicAttendancePage_New = () => {
         };
     }, [stream]);
 
-    // Auto-stop camera when page hidden (user switches tab/app)
+    // Auto-stop camera when page hidden (user switches tab/app) - optional, commented out to avoid UX disruption
+    // Uncomment if you want to auto-stop camera when user switches tabs
+    /*
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.hidden && stream) {
                 console.log('🛑 Stopping camera (page hidden)');
                 stream.getTracks().forEach((track) => track.stop());
                 setStream(null);
-                if (step !== 'idle' && step !== 'success' && step !== 'failed') {
-                    toast('Kamera dimatikan karena aplikasi tidak aktif', { icon: '⚠️' });
-                    handleReset();
-                }
+                setStep('idle');
+                toast('Kamera dimatikan karena aplikasi tidak aktif', { icon: '⚠️' });
             }
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [stream, step]);
+    }, [stream]);
+    */
 
     const startCamera = async () => {
         try {
@@ -111,16 +112,19 @@ const PublicAttendancePage_New = () => {
         }
     };
 
-    // ✅ FIX: Attach stream + play AFTER video element exists (proper sync)
+    // ✅ FIX: Attach stream + play IMMEDIATELY when stream available (no waiting for step)
     useEffect(() => {
         if (!stream || !videoRef.current) return;
-        // Play video when in capturing, liveness, or recognizing step
-        if (step !== 'capturing' && step !== 'liveness' && step !== 'recognizing') return;
 
         const video = videoRef.current;
-        video.srcObject = stream;
-        video.muted = true;
-        video.playsInline = true;
+        
+        // IMMEDIATELY attach stream (don't wait for step change)
+        if (video.srcObject !== stream) {
+            console.log('🎥 Attaching stream to video element...');
+            video.srcObject = stream;
+            video.muted = true;
+            video.playsInline = true;
+        }
 
         const playVideo = async () => {
             try {
@@ -141,7 +145,7 @@ const PublicAttendancePage_New = () => {
         return () => {
             video.onloadeddata = null;
         };
-    }, [stream, step]);
+    }, [stream]); // Only depend on stream, NOT step!
 
 
     const stopCamera = () => {
@@ -157,22 +161,38 @@ const PublicAttendancePage_New = () => {
     const captureImage = (): string => {
         if (!videoRef.current) throw new Error('Video not ready');
         const video = videoRef.current;
+        
+        // ✅ Validate video has actual frames before capturing
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            throw new Error('Video has no frames yet. Width=' + video.videoWidth);
+        }
+        
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Canvas context error');
+        
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL('image/jpeg', 0.9);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        
+        console.log('📷 Captured image:', canvas.width, 'x', canvas.height);
+        return dataUrl;
     };
 
     const handleStart = async () => {
-        const cameraOk = await startCamera();
-        if (!cameraOk) return;
-
-        // Always go to capturing step first, show video with capture button
+        // Set step FIRST so video element is rendered
         setStep('capturing');
-        toast('Posisikan wajah Anda dalam frame, lalu klik tombol ambil foto', { icon: '📸' });
+        toast('🎥 Memulai kamera...', { icon: '📹' });
+        
+        const cameraOk = await startCamera();
+        if (!cameraOk) {
+            setStep('idle');
+            return;
+        }
+        
+        // Camera started, show instruction
+        toast.success('Posisikan wajah Anda dalam frame oval', { icon: '📸' });
     };
 
     // Manual capture trigger - runs liveness check if enabled, then recognizes
@@ -201,7 +221,7 @@ const PublicAttendancePage_New = () => {
     };
 
     const handleRecognize = async () => {
-        setStep('recognizing');
+        // Don't set step here, it's already set by caller
         try {
             const image = captureImage();
             const resp = await mutation.mutateAsync({ image });

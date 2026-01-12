@@ -51,7 +51,23 @@ const HistoryPage: React.FC = () => {
       return '-'; // No keterangan for non-hadir status
     }
     
-    const [hours, minutes] = waktu.split(':').map(Number);
+    // Safety check for undefined or null waktu
+    if (!waktu || typeof waktu !== 'string') {
+      return '-';
+    }
+    
+    const timeParts = waktu.split(':');
+    if (timeParts.length < 2) {
+      return '-'; // Invalid time format
+    }
+    
+    const [hours, minutes] = timeParts.map(Number);
+    
+    // Validate parsed numbers
+    if (isNaN(hours) || isNaN(minutes)) {
+      return '-';
+    }
+    
     const totalMinutes = hours * 60 + minutes;
     
     // Before 7:00 (07:00)

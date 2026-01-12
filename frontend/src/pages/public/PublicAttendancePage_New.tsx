@@ -33,10 +33,27 @@ interface AttendanceResult {
     isAlreadySubmitted: boolean;
 }
 
+// Helper function for TTS (Windows Speech Synthesis)
+const speak = (text: string, rate: number = 1.0) => {
+    if ('speechSynthesis' in window) {
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'id-ID'; // Indonesian
+        utterance.rate = rate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        window.speechSynthesis.speak(utterance);
+    }
+};
+
 const PublicAttendancePage_New = () => {
     const [step, setStep] = useState<AttendanceStep>('idle');
     const [result, setResult] = useState<AttendanceResult | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [countdown, setCountdown] = useState<number | null>(null);
+    const [livenessInstruction, setLivenessInstruction] = useState<string>('');
     const videoRef = useRef<HTMLVideoElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const mutation = useMarkPublicAttendance();
@@ -208,6 +225,76 @@ const PublicAttendancePage_New = () => {
             handleRecognize();
         }
     }, [step, liveness.progress.passedCount, livenessSettings]);
+
+    // Voice instructions for liveness detection with delays
+    useEffect(() => {
+        if (step !== 'liveness') return;
+
+        let timeouts: NodeJS.Timeout[] = [];
+
+        const runInstructions = async () => {
+            // Give initial instruction with 1.5 second delay between instructions
+            if (livenessSettings?.require_head_turn) {
+                if (!liveness.progress.turnLeft) {
+                    setLivenessInstruction('👈 Hadap kiri');
+                    speak('Hadap kiri');
+                    
+                    // Wait 1.5 seconds, then give next instruction if needed
+                    const timeout1 = setTimeout(() => {
+                        if (!liveness.progress.turnRight && step === 'liveness') {
+                            setLivenessInstruction('👉 Hadap kanan');
+                            speak('Hadap kanan');
+                        }
+                    }, 1500);
+                    timeouts.push(timeout1);
+                } else if (!liveness.progress.turnRight) {
+                    setLivenessInstruction('👉 Hadap kanan');
+                    speak('Hadap kanan');
+                }
+            }
+
+            if (livenessSettings?.require_blink && !liveness.progress.blink) {
+                const timeout2 = setTimeout(() => {
+                    if (!liveness.progress.blink && step === 'liveness') {
+                        setLivenessInstruction('👁️ Berkedip');
+                        speak('Berkedip');
+                    }
+                }, 3000);
+                timeouts.push(timeout2);
+            }
+        };
+
+        runInstructions();
+
+        return () => {
+            timeouts.forEach(t => clearTimeout(t));
+        };
+    }, [step, liveness.progress, livenessSettings]);
+
+    // Countdown with TTS before capture
+    useEffect(() => {
+        if (countdown === null || countdown < 0) return;
+
+        if (countdown > 0) {
+            speak(countdown.toString(), 1.2); // Slightly faster for countdown
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+            return () => clearTimeout(timer);
+        } else {
+            // Countdown reached 0, capture immediately
+            setCountdown(null);
+            const captureNow = async () => {
+                const imageData = captureImage();
+                if (!imageData) {
+                    toast.error('Gagal mengambil gambar');
+                    return;
+                }
+
+                setStep('recognizing');
+                await handleRecognize();
+            };
+            captureNow();
+        }
+    }, [countdown]);
 
     // Manual capture trigger - runs REAL liveness check if enabled, then recognizes
     const handleCapture = async () => {
@@ -477,12 +564,16 @@ const PublicAttendancePage_New = () => {
                                         {step === 'liveness' && (
                                             <div className="absolute top-4 left-4 right-4">
                                                 <div className="bg-black/60 backdrop-blur-md rounded-xl p-4">
+                                                    {livenessInstruction && (
+                                                        <div className="mb-3 p-3 bg-teal-500/30 border border-teal-400 rounded-lg text-center">
+                                                            <span className="text-white text-lg font-bold">{livenessInstruction}</span>
+                                                        </div>
+                                                    )}
                                                     <div className="flex items-center justify-between mb-3">
                                                         <span className="text-white font-semibold">🔍 Real Liveness Detection</span>
                                                         <Badge variant="info">{liveness.progress.passedCount} / {livenessSettings?.min_checks || 2}</Badge>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        {livenessSettings?.require_blink && (
+                                                    <div className="grid grid-cols-2 gap-2">{livenessSettings?.require_blink && (
                                                             <div
                                                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg ${liveness.progress.blink
                                                                     ? 'bg-emerald-500/20 border border-emerald-400'
@@ -549,10 +640,14 @@ const PublicAttendancePage_New = () => {
                                                 Posisikan wajah Anda dalam frame oval
                                             </p>
                                             <button
-                                                onClick={handleCapture}
-                                                className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-semibold text-base sm:text-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl"
+                                                onClick={() => {
+                                                    speak('Bersiap');
+                                                    setCountdown(3); // Start 3, 2, 1 countdown
+                                                }}
+                                                disabled={countdown !== null}
+                                                className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-semibold text-base sm:text-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                📸 Ambil Foto Sekarang
+                                                {countdown !== null ? `${countdown}...` : '📸 Ambil Foto Sekarang'}
                                             </button>
                                         </>
                                     )}

@@ -216,62 +216,66 @@ const PublicAttendancePage_New = () => {
         toast.success('Posisikan wajah Anda dalam frame oval', { icon: '📸' });
     };
 
-    // Auto-proceed when liveness detection completes
+    // Auto-proceed when liveness detection completes - BOTH turns must be complete
     useEffect(() => {
-        if (step === 'liveness' && liveness.progress.passedCount >= (livenessSettings?.min_checks || 2)) {
+        const requiresBoth = livenessSettings?.require_head_turn && (livenessSettings?.min_checks >= 2);
+        const bothComplete = liveness.progress.turnLeft && liveness.progress.turnRight;
+        
+        console.log(`Auto-proceed check: step=${step} | requiresBoth=${requiresBoth} | bothComplete=${bothComplete} | turnLeft=${liveness.progress.turnLeft} | turnRight=${liveness.progress.turnRight} | passedCount=${liveness.progress.passedCount}`);
+        
+        if (step === 'liveness' && requiresBoth && bothComplete) {
+            console.log('🎉 BOTH TURNS COMPLETE! Proceeding to camera...');
             liveness.stopDetection();
-            toast.success('✅ Liveness berhasil! Mengenali wajah...');
-            setStep('recognizing');
-            handleRecognize();
+            toast.success('✅ Liveness berhasil!');
+            
+            // After liveness complete, prepare for capture with 1.5s delay
+            speak('Bersiap menghadap kamera');
+            setLivenessInstruction('📸 Bersiap menghadap kamera');
+            
+            setTimeout(() => {
+                setStep('capturing'); // Back to capturing step
+                setCountdown(3); // Start countdown 3-2-1
+            }, 1500);
+        } else if (step === 'liveness' && !requiresBoth && liveness.progress.passedCount >= (livenessSettings?.min_checks || 1)) {
+            // Fallback for non-head-turn scenarios
+            liveness.stopDetection();
+            toast.success('✅ Liveness berhasil!');
+            speak('Bersiap menghadap kamera');
+            setLivenessInstruction('📸 Bersiap menghadap kamera');
+            
+            setTimeout(() => {
+                setStep('capturing');
+                setCountdown(3);
+            }, 1500);
         }
-    }, [step, liveness.progress.passedCount, livenessSettings]);
+    }, [step, liveness.progress.turnLeft, liveness.progress.turnRight, liveness.progress.passedCount, livenessSettings]);
 
-    // Voice instructions for liveness detection with delays
+    // Voice instructions for liveness detection - only change instruction when really needed
     useEffect(() => {
-        if (step !== 'liveness') return;
+        if (step !== 'liveness' || !livenessSettings?.require_head_turn) return;
 
-        let timeouts: NodeJS.Timeout[] = [];
-
-        const runInstructions = async () => {
-            // Give initial instruction with 1.5 second delay between instructions
-            if (livenessSettings?.require_head_turn) {
-                if (!liveness.progress.turnLeft) {
-                    setLivenessInstruction('👈 Hadap kiri');
-                    speak('Hadap kiri');
-                    
-                    // Wait 1.5 seconds, then give next instruction if needed
-                    const timeout1 = setTimeout(() => {
-                        if (!liveness.progress.turnRight && step === 'liveness') {
-                            setLivenessInstruction('👉 Hadap kanan');
-                            speak('Hadap kanan');
-                        }
-                    }, 1500);
-                    timeouts.push(timeout1);
-                } else if (!liveness.progress.turnRight) {
-                    setLivenessInstruction('👉 Hadap kanan');
-                    speak('Hadap kanan');
-                }
+        // Simple logic: show current needed action
+        if (!liveness.progress.turnLeft) {
+            // Need left turn
+            if (livenessInstruction !== '👈 Hadap kiri') {
+                setLivenessInstruction('👈 Hadap kiri');
+                speak('Hadap kiri');
             }
-
-            if (livenessSettings?.require_blink && !liveness.progress.blink) {
-                const timeout2 = setTimeout(() => {
-                    if (!liveness.progress.blink && step === 'liveness') {
-                        setLivenessInstruction('👁️ Berkedip');
-                        speak('Berkedip');
-                    }
-                }, 3000);
-                timeouts.push(timeout2);
+        } else if (!liveness.progress.turnRight) {
+            // Need right turn (left already done)
+            if (livenessInstruction !== '👉 Hadap kanan') {
+                setLivenessInstruction('👉 Hadap kanan');
+                speak('Hadap kanan');
             }
-        };
+        } else {
+            // Both done!
+            if (livenessInstruction !== '✅ Selesai!') {
+                setLivenessInstruction('✅ Selesai!');
+            }
+        }
+    }, [step, liveness.progress.turnLeft, liveness.progress.turnRight, livenessSettings]);
 
-        runInstructions();
-
-        return () => {
-            timeouts.forEach(t => clearTimeout(t));
-        };
-    }, [step, liveness.progress, livenessSettings]);
-
-    // Countdown with TTS before capture
+    // Countdown with TTS - triggers recognition after liveness completes
     useEffect(() => {
         if (countdown === null || countdown < 0) return;
 
@@ -280,9 +284,10 @@ const PublicAttendancePage_New = () => {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
             return () => clearTimeout(timer);
         } else {
-            // Countdown reached 0, call handleCapture to trigger liveness or recognition
+            // Countdown reached 0, directly recognize (liveness already done)
             setCountdown(null);
-            handleCapture(); // This will handle liveness detection if enabled
+            setStep('recognizing');
+            handleRecognize();
         }
     }, [countdown]);
 
@@ -631,8 +636,14 @@ const PublicAttendancePage_New = () => {
                                             </p>
                                             <button
                                                 onClick={() => {
-                                                    speak('Bersiap');
-                                                    setCountdown(3); // Start 3, 2, 1 countdown
+                                                    if (livenessEnabled) {
+                                                        // Start liveness detection first
+                                                        handleCapture();
+                                                    } else {
+                                                        // No liveness, start countdown immediately
+                                                        speak('Bersiap');
+                                                        setCountdown(3);
+                                                    }
                                                 }}
                                                 disabled={countdown !== null}
                                                 className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-semibold text-base sm:text-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"

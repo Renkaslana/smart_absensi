@@ -167,34 +167,50 @@ export const useRealLivenessDetection = (
                     }
                 }
 
-                // Head turn detection
+                // Head turn detection - VERY STRICT: require sustained AND clear turn
                 if (settings.require_head_turn) {
                     const yaw = calculateYaw(landmarks);
                     yawHistoryRef.current.push(yaw);
 
-                    // Keep only last 20 frames
-                    if (yawHistoryRef.current.length > 20) {
+                    console.log(`Current yaw: ${yaw.toFixed(1)}° | History length: ${yawHistoryRef.current.length} | Left: ${progress.turnLeft} | Right: ${progress.turnRight} | PassedCount: ${progress.passedCount}`);
+
+                    // Keep only last 8 frames
+                    if (yawHistoryRef.current.length > 8) {
                         yawHistoryRef.current.shift();
                     }
 
-                    // Left turn detection (yaw < -15 degrees)
-                    if (!progress.turnLeft && yawHistoryRef.current.some(y => y < -15)) {
-                        console.log('⬅️ Left turn detected! Yaw:', yaw.toFixed(1), '°');
-                        setProgress(prev => ({
-                            ...prev,
-                            turnLeft: true,
-                            passedCount: prev.passedCount + 1
-                        }));
+                    // Left turn detection: require ALL last 5 frames to be < -15 (no ambiguity)
+                    if (!progress.turnLeft && yawHistoryRef.current.length >= 5) {
+                        const last5 = yawHistoryRef.current.slice(-5);
+                        const allLeft = last5.every(y => y < -15);
+                        console.log(`Checking left: last5=${last5.map(y => y.toFixed(1))} | allLeft=${allLeft}`);
+                        if (allLeft) {
+                            console.log('✅ ⬅️ LEFT TURN CONFIRMED! Yaw:', yaw.toFixed(1), '°');
+                            setProgress(prev => ({
+                                ...prev,
+                                turnLeft: true,
+                                passedCount: prev.passedCount + 1
+                            }));
+                            // Clear history completely
+                            yawHistoryRef.current = [];
+                        }
                     }
 
-                    // Right turn detection (yaw > 15 degrees)
-                    if (!progress.turnRight && yawHistoryRef.current.some(y => y > 15)) {
-                        console.log('➡️ Right turn detected! Yaw:', yaw.toFixed(1), '°');
-                        setProgress(prev => ({
-                            ...prev,
-                            turnRight: true,
-                            passedCount: prev.passedCount + 1
-                        }));
+                    // Right turn detection: require ALL last 5 frames to be > 15 (no ambiguity)
+                    if (!progress.turnRight && yawHistoryRef.current.length >= 5) {
+                        const last5 = yawHistoryRef.current.slice(-5);
+                        const allRight = last5.every(y => y > 15);
+                        console.log(`Checking right: last5=${last5.map(y => y.toFixed(1))} | allRight=${allRight}`);
+                        if (allRight) {
+                            console.log('✅ ➡️ RIGHT TURN CONFIRMED! Yaw:', yaw.toFixed(1), '°');
+                            setProgress(prev => ({
+                                ...prev,
+                                turnRight: true,
+                                passedCount: prev.passedCount + 1
+                            }));
+                            // Clear history
+                            yawHistoryRef.current = [];
+                        }
                     }
                 }
 
@@ -203,7 +219,9 @@ export const useRealLivenessDetection = (
                     (settings.require_blink ? 1 : 0) + 
                     (settings.require_head_turn ? 2 : 0);
                 
+                console.log(`PassedCount: ${progress.passedCount} | RequiredChecks: ${requiredChecks} | min_checks: ${settings.min_checks}`);
                 if (progress.passedCount >= Math.min(requiredChecks, settings.min_checks)) {
+                    console.log('🎯 ALL CHECKS PASSED! Stopping detection...');
                     stopDetection();
                 }
 

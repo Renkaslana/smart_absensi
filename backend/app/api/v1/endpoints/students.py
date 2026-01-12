@@ -103,7 +103,7 @@ def get_attendance_history(
     status: Optional[str] = Query(None, description="Filter by status"),
     search: Optional[str] = Query(None, description="Search by subject/teacher"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(10, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(10, ge=1, le=1000, description="Items per page"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user_student)
 ):
@@ -142,13 +142,22 @@ def get_attendance_history(
     # Calculate total pages
     total_pages = (total + page_size - 1) // page_size  # Ceiling division
     
-    # Convert ORM objects to Pydantic models explicitly
-    attendance_records = [AttendanceRecord.model_validate(record) for record in records]
+    # Convert ORM objects to Pydantic models explicitly with error handling
+    attendance_records = []
+    for record in records:
+        try:
+            validated_record = AttendanceRecord.model_validate(record)
+            attendance_records.append(validated_record)
+        except Exception as e:
+            # Log the problematic record but don't crash
+            print(f"Warning: Failed to validate record {record.id}: {e}")
+            # Skip invalid records
+            continue
     
     # Return response
     return AttendanceHistoryResponse(
         data=attendance_records,
-        total=total,
+        total=len(attendance_records),  # Use actual count after filtering
         page=page,
         page_size=page_size,
         total_pages=total_pages

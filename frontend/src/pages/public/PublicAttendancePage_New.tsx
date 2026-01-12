@@ -73,7 +73,7 @@ const PublicAttendancePage_New = () => {
 
   const startCamera = async () => {
     try {
-      // ✅ FIX BUG #1: Don't force exact resolution, let browser choose best
+      // ✅ Only request camera, DON'T attach yet
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'user',
@@ -81,13 +81,7 @@ const PublicAttendancePage_New = () => {
           height: { ideal: 720 }
         },
       });
-      setStream(mediaStream);
-      
-      // ✅ FIX BUG #2: Only attach stream, let onLoadedMetadata handle play
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        // Don't call play() here!
-      }
+      setStream(mediaStream); // This will trigger useEffect to attach
       return true;
     } catch (error) {
       toast.error('Gagal mengakses kamera');
@@ -95,6 +89,14 @@ const PublicAttendancePage_New = () => {
       return false;
     }
   };
+
+  // ✅ FIX: Attach stream AFTER video element exists (React timing fix)
+  useEffect(() => {
+    if (stream && videoRef.current && (step === 'liveness' || step === 'capturing' || step === 'recognizing')) {
+      console.log('[Camera] Attaching stream to video element');
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, step]);
 
   const stopCamera = () => {
     if (stream) {

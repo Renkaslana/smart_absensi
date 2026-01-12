@@ -39,6 +39,7 @@ import AttendancePage from './pages/admin/AttendancePage';
 import AttendanceTestPage from './pages/admin/AttendanceTestPage';
 import FaceRegistrationPage from './pages/admin/FaceRegistrationPage';
 import SettingsPage from './pages/admin/SettingsPage';
+import SearchResultsPage from './pages/admin/SearchResultsPage';
 
 // Protected Route Component
 function ProtectedRoute({ 
@@ -174,6 +175,10 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <AdminDashboard />,
+      },
+      {
+        path: 'search',
+        element: <SearchResultsPage />,
       },
       {
         path: 'students',

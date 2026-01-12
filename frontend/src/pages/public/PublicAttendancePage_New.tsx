@@ -648,7 +648,7 @@ const PublicAttendancePage_New = () => {
                                                 disabled={countdown !== null}
                                                 className="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-semibold text-base sm:text-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                {countdown !== null ? `${countdown}...` : '📸 Ambil Foto Sekarang'}
+                                                {countdown !== null ? `${countdown}...` : '🎯 Mulai Absensi'}
                                             </button>
                                         </>
                                     )}

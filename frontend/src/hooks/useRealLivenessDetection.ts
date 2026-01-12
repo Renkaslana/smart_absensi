@@ -89,8 +89,8 @@ export const useRealLivenessDetection = (
     // Calculate head yaw angle for head turn detection
     const calculateYaw = (landmarks: faceapi.FaceLandmarks68): number => {
         const noseTip = landmarks.getNose()[3]; // Nose tip
-        const leftMouth = landmarks.getMouth()[0]; // Left corner of mouth (user's left, screen right)
-        const rightMouth = landmarks.getMouth()[6]; // Right corner of mouth (user's right, screen left)
+        const leftMouth = landmarks.getMouth()[0]; // Left corner of mouth (user's left = screen right)
+        const rightMouth = landmarks.getMouth()[6]; // Right corner of mouth (user's right = screen left)
 
         const mouthCenter = {
             x: (leftMouth.x + rightMouth.x) / 2,
@@ -98,14 +98,14 @@ export const useRealLivenessDetection = (
         };
 
         // Calculate horizontal offset from mouth center to nose
-        // Positive when face turns RIGHT (nose moves right of mouth center)
-        // Negative when face turns LEFT (nose moves left of mouth center)
-        const offset = noseTip.x - mouthCenter.x;
+        // FIXED: Negate the offset because camera is mirrored
+        // When user turns RIGHT (their right), nose moves LEFT on screen (negative offset)
+        // When user turns LEFT (their left), nose moves RIGHT on screen (positive offset)
+        const offset = -(noseTip.x - mouthCenter.x); // NEGATED for correct mirror mapping
         const mouthWidth = Math.abs(rightMouth.x - leftMouth.x);
         
         // Normalize to degrees: positive = right turn, negative = left turn
-        // Using mouth width as reference for normalization
-        const yaw = (offset / mouthWidth) * 60; // Scale factor adjusted for better sensitivity
+        const yaw = (offset / mouthWidth) * 60;
         return yaw;
     };
 

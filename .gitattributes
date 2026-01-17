@@ -1,3 +1,5 @@
+frontend/public/models/* filter=lfs diff=lfs merge=lfs -text
+frontend/public/voice/* filter=lfs diff=lfs merge=lfs -text
+frontend2/public/mediapipe/** filter=lfs diff=lfs merge=lfs -text
 frontend/public/models/** filter=lfs diff=lfs merge=lfs -text
 frontend/public/voice/** filter=lfs diff=lfs merge=lfs -text
-frontend2/public/mediapipe/** filter=lfs diff=lfs merge=lfs -text

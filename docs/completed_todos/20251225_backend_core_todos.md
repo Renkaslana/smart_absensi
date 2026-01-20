@@ -392,5 +392,5 @@ To my amazing partner who gave wise advice about choosing the right technology s
 **Progress:** 60% Backend Implementation  
 **Next Session:** Face Recognition Implementation  
 
-**Prepared by:** Luna (GitHub Copilot)  
+**Prepared by:** Lycus (Affif)  
 **Date:** 25 Desember 2025

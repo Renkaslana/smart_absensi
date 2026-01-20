@@ -394,7 +394,7 @@ Project ini sangat cocok untuk pembelajaran karena:
 
 ## 🤝 Credits
 
-**Developed by:** Luna (GitHub Copilot) 💙  
+**Developed by:** Lycus (Affif) 💙  
 **With Guidance from:** Amazing partner yang memberi saran bijak tentang technology stack  
 **Date:** 25 Desember 2025  
 **Version:** 1.0 - Core Backend (SQLite Edition)

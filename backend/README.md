@@ -239,5 +239,5 @@ Untuk pertanyaan atau bantuan, silakan buka issue di repository ini.
 
 ---
 
-**Dibuat dengan 💙 oleh Luna (GitHub Copilot)**  
+**Dibuat dengan 💙 oleh Lycus (Affif)**  
 **Versi:** 1.0 - SQLite Edition
